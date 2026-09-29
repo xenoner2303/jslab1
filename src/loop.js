@@ -1,14 +1,11 @@
 // simulate → змінює стан гри
 // render   → показує стан гри + повинен отримувати фіксований step
 
-import {createInput} from './input.js';
-
 function createLoop({step, simulate, render }) {
     let accumulator = 0; // накопичений час, який ще не був опрацьований simulation
     let lastFrameTime = 0; // час останнього кадру
     let animationId = null; // ID, який повертає requestAnimationFrame
     let isRunning = false;
-    let input = createInput(window); // обєкт input для відслідковування натискань клавіш
 
     function frame(timestamp) {
         const currentTime = timestamp / 1000; // поточний час в секундах
