@@ -1,5 +1,5 @@
 // simulate → змінює стан гри
-// render   → показує стан гри повинен отримувати фіксований step
+// render   → показує стан гри + повинен отримувати фіксований step
 
 function createLoop({step, simulate, render }) {
     let accumulator = 0; // накопичений час, який ще не був опрацьований simulation
