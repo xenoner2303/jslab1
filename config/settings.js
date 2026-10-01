@@ -8,3 +8,6 @@ export const dragCoefficient = 0.1 // коефіцієнт опору
 // ship drawing params
 export const shipWidth = 50
 export const shipHeight = 20
+
+// setup configuration
+export const step = 1 / 60; // крок симуляції в секундах

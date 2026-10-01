@@ -10,7 +10,7 @@ function configureCanvas(window) {
         canvas.width = cssWidth * dpr;
         canvas.height = cssHeight * dpr;
 
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.scale(dpr, dpr); // масштабування контексту, щоб малювати в CSS пікселях
     }
 
     resizeCanvas();
@@ -18,7 +18,6 @@ function configureCanvas(window) {
     window.addEventListener("resize", resizeCanvas);
 
     return {
-        canvas,
         ctx,
         resizeCanvas
     };
