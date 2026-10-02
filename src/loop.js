@@ -11,20 +11,15 @@ function createLoop({step, simulate, render }) {
 
     function frame(timestamp) {
         const currentTime = timestamp / 1000;
-        const deltaTime = Math.min(0.25, currentTime - lastFrameTime); // accumulator clamp 0.25
+        const deltaTime = Math.min(0.25, currentTime - lastFrameTime);
         lastFrameTime = currentTime;
 
-        accumulator += deltaTime;
-
-        while (accumulator >= step) {
-            simulate(step);
-            accumulator -= step;
-            stepCount++;
-        }
+        simulate(deltaTime);
+        stepCount++;
 
         frameCount++;
 
-        if (currentTime - statsTime >= 1) { // check - second passed simce last stat or no
+        if (currentTime - statsTime >= 1) {
             const elapsedTime = currentTime - statsTime;
 
             sps = stepCount / elapsedTime;
@@ -35,14 +30,13 @@ function createLoop({step, simulate, render }) {
             statsTime = currentTime;
         }
 
-        const alpha = accumulator / step;
         const stats = {
             sps,
             fps,
             frameTime: deltaTime * 1000
         };
 
-        render(alpha, stats);
+        render(1, stats);
 
         animationId = requestAnimationFrame(frame);
     }

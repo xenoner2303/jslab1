@@ -23,28 +23,10 @@ function simulate(dt) {
     input.clearJustPressed();
 }
 
-let frameTimes = [];
-let measureStart = performance.now();
-
 function render(alpha, stats) {
-    frameTimes.push(stats.frameTime);
-
-    if (performance.now() - measureStart >= 10000) {
-        const min = Math.min(...frameTimes);
-        const max = Math.max(...frameTimes);
-
-        console.log("frames:", frameTimes.length);
-        console.log("frametime min:", min.toFixed(2), "ms");
-        console.log("frametime max:", max.toFixed(2), "ms");
-        console.log("jitter:", (max - min).toFixed(2), "ms");
-
-        frameTimes = [];
-        measureStart = performance.now();
-    }
-
     const ctx = canvasConfig.ctx;
     const hud = document.getElementById("hud");
-    hud.querySelector("#steps").textContent = `Steps: ${stats.sps}`;
+    hud.querySelector("#steps").textContent = `Steps: ${stats.sps.toFixed(2)}`;
     hud.querySelector("#fps").textContent = `FPS: ${stats.fps.toFixed(2)}`;
     hud.querySelector("#frameTime").textContent = `Frame Time: ${stats.frameTime.toFixed(2)} ms`;
 
