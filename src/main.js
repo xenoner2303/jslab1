@@ -13,6 +13,8 @@ ship.x = window.innerWidth / 2; // start ship pos
 ship.y = window.innerHeight / 2;
 
 let previous = { ...ship }; // previous ship state
+let testStart = performance.now();
+let testDone = false;
 
 function simulate(dt) {
     previous = { ...ship };
@@ -21,6 +23,11 @@ function simulate(dt) {
     wrap(ship, window.innerWidth, window.innerHeight);
 
     input.clearJustPressed();
+
+    if (!testDone && performance.now() - testStart >= 5000) {
+        console.log("Posafter 5 s:", ship.x, ship.y);
+        testDone = true;
+    }
 }
 
 function render(alpha, stats) {

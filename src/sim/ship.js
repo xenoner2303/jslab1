@@ -37,24 +37,8 @@ function integrate(ship, input, dt) {
         ship.angle += angleSpeed * Math.PI / 180 * dt;
     }
 
-    let inputThrust = 0;
-    if (input.isDown("KeyW")) inputThrust += 1;
-    if (input.isDown("KeyS")) inputThrust -= 1;
-
-    if (inputThrust > 0) {
-        ship.thrust = Math.min(ship.thrust + thrustIncrement * dt, maxThrust);
-    }
-    else if (inputThrust < 0) {
-        ship.thrust = Math.max(ship.thrust - thrustIncrement * dt, -maxThrust);
-    }
-    else{
-        if(ship.thrust > 0) {
-            ship.thrust = Math.max(ship.thrust - thrustDecrement * dt, 0);
-        }
-        else if(ship.thrust < 0) {
-            ship.thrust = Math.min(ship.thrust + thrustDecrement * dt, 0);
-        }
-    }
+    
+    ship.thrust = Math.min(ship.thrust + thrustIncrement * dt, maxThrust);
 
     if(ship.thrust != 0){
         const localVx = ship.vx + Math.cos(ship.angle) * ship.thrust * dt;
