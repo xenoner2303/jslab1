@@ -2,7 +2,7 @@ import { createInput } from './input.js';
 import { createLoop } from './loop.js';
 import { ship, integrate } from './sim/ship.js';
 import { wrap } from './sim/arena.js';
-import { drawShip } from './render/draw.js';
+import { drawShip, drawGrid } from './render/draw.js';
 import { configureCanvas } from './render/canvas.js';
 import { step } from "../config/settings.js";
 
@@ -30,13 +30,18 @@ function render(alpha, stats) {
 
     ctx.clearRect(0, 0, window.innerWidth, window.innerHeight); // очищаємо весь canvas перед малюванням нового кадру
 
+    const angleChange = getAngleDelta(previous.angle, ship.angle);
+
     // інтерполяція між попереднім і поточним станом корабля
     const interpolatedShip = {
         x: previous.x + (ship.x - previous.x) * alpha,
         y: previous.y + (ship.y - previous.y) * alpha,
-        angle: lerpAngle(previous.angle, ship.angle, alpha)
+        angle: previous.angle + angleChange * alpha,
+        thrust: previous.thrust + (ship.thrust - previous.thrust) * alpha,
+        angleChange
     };
 
+    drawGrid(ctx, window.innerWidth, window.innerHeight);
     drawShip(ctx, interpolatedShip);
 }
 
@@ -48,7 +53,7 @@ const loop = createLoop({
 
 loop.start();
 
-function lerpAngle(previous, current, alpha) { // функція, що повертає найкоротший шлях між двома кутами, враховуючи обертання на 360 градусів
+function getAngleDelta(previous, current) {
     let delta = current - previous;
 
     if (delta > Math.PI) {
@@ -59,5 +64,5 @@ function lerpAngle(previous, current, alpha) { // функція, що пове�
         delta += 2 * Math.PI;
     }
 
-    return previous + delta * alpha;
+    return delta;
 }
