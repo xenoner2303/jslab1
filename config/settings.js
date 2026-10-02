@@ -1,6 +1,6 @@
 // ship physics parameters
 export const maxSpeed = 100 // максимальна швидкість корабля
-export const angleSpeed = 5 // швидкість повороту корабля
+export const angleSpeed = 90 // швидкість повороту корабля за секунду (в градусах)
 export const maxThrust = 50 // максимальна тяга корабля
 export const thrustIncrement = 10 // приріст тяги корабля за крок
 export const dragCoefficient = 0.1 // коефіцієнт опору

@@ -9,12 +9,12 @@ const ship = {
     thrust: 0, // тяга (наскільки сильно розганяється корабель)
 }
 
-function integrate(ship, input, dt) { // ship - об'єкт корабля, input - об'єкт вводу, dt - крок часу
+function integrate(ship, input, dt) { // ship - об'єкт корабля, input - об'єкт вводу, dt - тривалість кроку симуляції в секундах
     if(input.isJustPressed("KeyA")) {
         console.log("Ship just started turning left"); // ідея для того, щоб підкрутити певну анімацію при натисканні клавіші, наприклад, стрілку повороту корабля
     }
     
-    if (input.isDown("KeyA")) { // -angleSpeed градусів за крок
+    if (input.isDown("KeyA")) {
         ship.angle -= angleSpeed * Math.PI / 180 * dt;
     }
 
@@ -22,7 +22,7 @@ function integrate(ship, input, dt) { // ship - об'єкт корабля, inpu
         console.log("Ship just started turning right"); // ідея для того, щоб підкрутити певну анімацію при натисканні клавіші, наприклад, стрілку повороту корабля
     }
     
-    if (input.isDown("KeyD")) { // +angleSpeed градусів за крок
+    if (input.isDown("KeyD")) {
         ship.angle += angleSpeed * Math.PI / 180 * dt;
     }
 
