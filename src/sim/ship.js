@@ -38,7 +38,7 @@ function integrate(ship, input, dt) {
     }
 
     
-    ship.thrust = Math.min(ship.thrust + thrustIncrement * dt, maxThrust);
+    ship.thrust = Math.min(ship.thrust + thrustIncrement, maxThrust); // delete dt to make thrust dependent on fps
 
     if(ship.thrust != 0){
         const localVx = ship.vx + Math.cos(ship.angle) * ship.thrust * dt;
