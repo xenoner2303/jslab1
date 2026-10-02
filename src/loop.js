@@ -9,8 +9,8 @@ function createLoop({step, simulate, render }) {
     let sps = 0;
     let fps = 0;
 
-    function frame(timestamp) {
-        const currentTime = timestamp / 1000;
+    function frame() {
+        const currentTime = performance.now() / 1000;
         const deltaTime = Math.min(0.25, currentTime - lastFrameTime); // accumulator clamp 0.25
         lastFrameTime = currentTime;
 
@@ -43,8 +43,6 @@ function createLoop({step, simulate, render }) {
         };
 
         render(alpha, stats);
-
-        animationId = requestAnimationFrame(frame);
     }
 
     function start() {
@@ -54,12 +52,12 @@ function createLoop({step, simulate, render }) {
 
         lastFrameTime = now;
         statsTime = now;
-        animationId = requestAnimationFrame(frame);
+        animationId = setInterval(frame, 16);
         isRunning = true;
     }
 
     function stop() {
-        cancelAnimationFrame(animationId);
+        clearInterval(animationId);
         isRunning = false;
         animationId = null;
     }

@@ -23,15 +23,23 @@ function simulate(dt) {
     input.clearJustPressed();
 }
 
-let renderCount = 0;
+let frameTimes = [];
+let measureStart = performance.now();
 
 function render(alpha, stats) {
-    renderCount++;
+    frameTimes.push(stats.frameTime);
 
-    if (renderCount % 60 === 0) {
-        const t = performance.now();
+    if (performance.now() - measureStart >= 10000) {
+        const min = Math.min(...frameTimes);
+        const max = Math.max(...frameTimes);
 
-        while (performance.now() < t + 100) {}
+        console.log("frames:", frameTimes.length);
+        console.log("frametime min:", min.toFixed(2), "ms");
+        console.log("frametime max:", max.toFixed(2), "ms");
+        console.log("jitter:", (max - min).toFixed(2), "ms");
+
+        frameTimes = [];
+        measureStart = performance.now();
     }
 
     const ctx = canvasConfig.ctx;
