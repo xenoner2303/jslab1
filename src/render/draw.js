@@ -38,7 +38,7 @@ function drawShip(ctx, ship) {
     ctx.restore();
 }
 
-function drawBulletThrust(ctx, thrust) {
+function drawBulletThrust(ctx, thrust, angleChange) {
     if (thrust === 0) return;
 
     const direction = thrust > 0 ? -1 : 1;
