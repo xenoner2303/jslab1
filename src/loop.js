@@ -14,8 +14,13 @@ function createLoop({step, simulate, render }) {
         const deltaTime = Math.min(0.25, currentTime - lastFrameTime);
         lastFrameTime = currentTime;
 
-        simulate(deltaTime);
-        stepCount++;
+        accumulator += deltaTime;
+
+        while (accumulator >= step) {
+            simulate(step);
+            accumulator -= step;
+            stepCount++;
+        }
 
         frameCount++;
 
@@ -30,13 +35,14 @@ function createLoop({step, simulate, render }) {
             statsTime = currentTime;
         }
 
+        const alpha = accumulator / step;
         const stats = {
             sps,
             fps,
             frameTime: deltaTime * 1000
         };
 
-        render(1, stats);
+        render(alpha, stats);
 
         animationId = requestAnimationFrame(frame);
     }
