@@ -2,7 +2,7 @@
 export const maxSpeed = 300
 export const angleSpeed = 90 // for second in degrees
 export const maxThrust = 100
-export const thrustIncrement = 20
+export const thrustIncrement = 0.1
 export const thrustDecrement = 80
 export const dragSpeed = 100
 
