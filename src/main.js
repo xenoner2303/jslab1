@@ -4,10 +4,14 @@ import { ship, integrate } from './sim/ship.js';
 import { wrap } from './sim/arena.js';
 import { drawShip } from './render/draw.js';
 import { configureCanvas } from './render/canvas.js';
-import { step } from "./config/settings.js";
+import { step } from "../config/settings.js";
 
 const canvasConfig = configureCanvas(window);
 const input = createInput(window); // closure state for simulate to dont mess loop
+
+ship.x = window.innerWidth / 2; // встановлюємо початкову позицію корабля в центрі вікна
+ship.y = window.innerHeight / 2;
+
 let previous = { ...ship }; // зберігаємо попередній стан корабля перед інтеграцією
 
 function simulate(dt) {
@@ -20,10 +24,10 @@ function simulate(dt) {
 function render(alpha, stats) {
     const ctx = canvasConfig.ctx;
     const hud = document.getElementById("hud");
-    hud.querySelector("#steps").textContent = `Steps: ${stats.steps}`;
+    hud.querySelector("#steps").textContent = `Steps: ${stats.sps}`;
     hud.querySelector("#fps").textContent = `FPS: ${stats.fps.toFixed(2)}`;
     hud.querySelector("#frameTime").textContent = `Frame Time: ${stats.frameTime.toFixed(2)} ms`;
-    
+
     ctx.clearRect(0, 0, window.innerWidth, window.innerHeight); // очищаємо весь canvas перед малюванням нового кадру
 
     // інтерполяція між попереднім і поточним станом корабля
