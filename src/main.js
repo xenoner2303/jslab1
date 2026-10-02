@@ -23,7 +23,17 @@ function simulate(dt) {
     input.clearJustPressed();
 }
 
+let renderCount = 0;
+
 function render(alpha, stats) {
+    renderCount++;
+
+    if (renderCount % 60 === 0) {
+        const t = performance.now();
+
+        while (performance.now() < t + 100) {}
+    }
+
     const ctx = canvasConfig.ctx;
     const hud = document.getElementById("hud");
     hud.querySelector("#steps").textContent = `Steps: ${stats.sps}`;

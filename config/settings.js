@@ -4,7 +4,7 @@ export const angleSpeed = 90 // for second in degrees
 export const maxThrust = 100
 export const thrustIncrement = 20
 export const thrustDecrement = 80
-export const dragSpeed = 40
+export const dragSpeed = 100
 
 // ship drawing params
 export const bulletWidth = 25
