@@ -1,13 +1,14 @@
-import { bulletWidth, bulletHeight, gridSize, bulletLineWidth, bulletFillStyle, bulletStrokeStyle, bulletFrontThurstColor, bulletBackThurstColor, bulletThurstLineWidth, bulletThurstLineCount } from "../../config/settings.js";
+import { gridColor, bulletAnglePower, bulletThurstMultiplier, bulletWidth, bulletHeight, gridSize, bulletLineWidth, bulletFillStyle, bulletStrokeStyle, bulletFrontThurstColor, bulletBackThurstColor, bulletThurstLineWidth, bulletThurstLineCount } from "../../config/settings.js";
 
 function drawShip(ctx, ship) {
     ctx.save();
-    ctx.translate(ship.x, ship.y); // переміщуємо початок координат в точку (ship.x, ship.y) - саме перенесе контур корабля який намалювався
+    ctx.translate(ship.x, ship.y);
     ctx.rotate(ship.angle);
 
     ctx.fillStyle = bulletFillStyle;
     ctx.strokeStyle = bulletStrokeStyle;
     ctx.lineWidth = bulletLineWidth;
+
     const bulletRadius = bulletWidth / 2;
     const bulletBodyLength = bulletHeight - bulletRadius;
 
@@ -16,7 +17,7 @@ function drawShip(ctx, ship) {
 
     ctx.lineTo(bulletBodyLength - bulletHeight / 2, -bulletWidth / 2);
 
-    ctx.arc( // ніс кулі
+    ctx.arc(
         bulletBodyLength - bulletHeight / 2,
         0,
         bulletRadius,
@@ -42,23 +43,31 @@ function drawBulletThrust(ctx, thrust, angleChange) {
     if (thrust === 0) return;
 
     const direction = thrust > 0 ? -1 : 1;
-    const length = Math.abs(thrust) * 0.5;
+    const length = Math.abs(thrust) * bulletThurstMultiplier;
 
     ctx.strokeStyle = thrust > 0 ? bulletFrontThurstColor : bulletBackThurstColor;
 
     ctx.lineWidth = bulletThurstLineWidth;
 
-    const spaceCount = bulletThurstLineCount + 1;
-    const lineSpacing = (bulletWidth - bulletThurstLineCount * bulletThurstLineWidth) / spaceCount;
+    let lineSpacing = 0;
+    let y = 0;
 
-    let y = -bulletWidth / 2 + lineSpacing + bulletThurstLineWidth / 2;
+    if (bulletThurstLineCount == 1) {
+        y = 0;
+    } 
+    else 
+    {
+        lineSpacing = (bulletWidth - bulletThurstLineWidth) / (bulletThurstLineCount - 1);
+
+        y = -bulletWidth / 2 + bulletThurstLineWidth / 2;
+    }
 
     for (let i = 0; i < bulletThurstLineCount; i++) {
-        const startX = direction * (bulletHeight / 2 + 2);
+        const startX = direction * (bulletHeight / 2);
         const endX = startX + direction * length;
 
         const controlX = (startX + endX) / 2;
-        const controlY = y + angleChange * length * 2;
+        const controlY = y + angleChange * length * direction * bulletAnglePower;
         
         ctx.beginPath();
         ctx.moveTo(startX, y);
@@ -67,22 +76,22 @@ function drawBulletThrust(ctx, thrust, angleChange) {
 
         ctx.stroke();
 
-        y += lineSpacing + bulletThurstLineWidth;
+        y += lineSpacing;
     }
 }
 
 function drawGrid(ctx, width, height) {
-    ctx.strokeStyle = "#444";
+    ctx.strokeStyle = gridColor;
     ctx.lineWidth = 1;
 
-    for (let x = 0; x < width; x += gridSize) { // вертикальні
+    for (let x = 0; x < width; x += gridSize) { // vertical
         ctx.beginPath();
         ctx.moveTo(x, 0);
         ctx.lineTo(x, height);
         ctx.stroke();
     }
 
-    for (let y = 0; y < height; y += gridSize) { // горизонтальні
+    for (let y = 0; y < height; y += gridSize) { // horizontal
         ctx.beginPath();
         ctx.moveTo(0, y);
         ctx.lineTo(width, y);

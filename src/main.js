@@ -7,18 +7,20 @@ import { configureCanvas } from './render/canvas.js';
 import { step } from "../config/settings.js";
 
 const canvasConfig = configureCanvas(window);
-const input = createInput(window); // closure state for simulate to dont mess loop
+const input = createInput(window);
 
-ship.x = window.innerWidth / 2; // встановлюємо початкову позицію корабля в центрі вікна
+ship.x = window.innerWidth / 2; // start ship pos
 ship.y = window.innerHeight / 2;
 
-let previous = { ...ship }; // зберігаємо попередній стан корабля перед інтеграцією
+let previous = { ...ship }; // previous ship state
 
 function simulate(dt) {
     previous = { ...ship };
 
-    integrate(ship, input, dt); // змінили внутрішінй стан корабля
-    wrap(ship, window.innerWidth, window.innerHeight); // wrap ship position to stay within the canvas boundaries
+    integrate(ship, input, dt); // modify inner ship state
+    wrap(ship, window.innerWidth, window.innerHeight);
+
+    input.clearJustPressed();
 }
 
 function render(alpha, stats) {
@@ -28,12 +30,11 @@ function render(alpha, stats) {
     hud.querySelector("#fps").textContent = `FPS: ${stats.fps.toFixed(2)}`;
     hud.querySelector("#frameTime").textContent = `Frame Time: ${stats.frameTime.toFixed(2)} ms`;
 
-    ctx.clearRect(0, 0, window.innerWidth, window.innerHeight); // очищаємо весь canvas перед малюванням нового кадру
+    ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
 
     const angleChange = getAngleDelta(previous.angle, ship.angle);
 
-    // інтерполяція між попереднім і поточним станом корабля
-    const interpolatedShip = {
+    const interpolatedShip = { // interpolation between ship states
         x: previous.x + (ship.x - previous.x) * alpha,
         y: previous.y + (ship.y - previous.y) * alpha,
         angle: previous.angle + angleChange * alpha,

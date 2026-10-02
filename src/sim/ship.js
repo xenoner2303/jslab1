@@ -1,36 +1,36 @@
 import { maxSpeed, angleSpeed, maxThrust, thrustIncrement, thrustDecrement, dragSpeed } from "../../config/settings.js";
 
 const ship = {
-    x: 0, // перша координата вікна
-    y: 0, // друга координата вікна
-    vx: 0, // швидкість по першій координаті
-    vy: 0, // швидкість по другій координаті
-    angle: 0, // кут повороту
-    thrust: 0, // тяга (прискорення)
+    x: 0,
+    y: 0,
+    vx: 0,
+    vy: 0,
+    angle: 0,
+    thrust: 0
 }
 
-function integrate(ship, input, dt) { // ship - об'єкт корабля, input - об'єкт вводу, dt - тривалість кроку симуляції в секундах
+function integrate(ship, input, dt) {
     if(input.isJustPressed("KeyA")) {
-        console.log("Ship just started turning left"); // ідея для того, щоб підкрутити певну анімацію при натисканні клавіші, наприклад, стрілку повороту корабля
+        console.log("started turning left");
     }
     
     if(input.isJustPressed("KeyD")) {
-        console.log("Ship just started turning right"); // ідея для того, щоб підкрутити певну анімацію при натисканні клавіші, наприклад, стрілку повороту корабля
+        console.log("started turning right");
     }
 
     if(input.isJustPressed("KeyW")) {
-        console.log("Ship just started moving forward"); // ідея для того, щоб підкрутити певну анімацію при натисканні клавіші, наприклад, вогонь з двигуна
+        console.log("started moving forward");
     }
     
     if(input.isJustPressed("KeyS")) {
-        console.log("Ship just started moving backward"); // ідея для того, щоб підкрутити певну анімацію при натисканні клавіші, наприклад, вогонь з двигуна
+        console.log("started moving backward");
     }
 
     let inputAngle = 0;
     if (input.isDown("KeyA")) inputAngle -= 1;
     if (input.isDown("KeyD")) inputAngle += 1;
 
-    if (inputAngle < 0) { // ми можемо повертатися лише в 1 сторону одночасно
+    if (inputAngle < 0) {
         ship.angle -= angleSpeed * Math.PI / 180 * dt;
     }
     else if (inputAngle > 0) {
@@ -47,7 +47,7 @@ function integrate(ship, input, dt) { // ship - об'єкт корабля, inpu
     else if (inputThrust < 0) {
         ship.thrust = Math.max(ship.thrust - thrustIncrement * dt, -maxThrust);
     }
-    else{ // якщо клавіша W або S не натиснута, або затиснуті обидві клавіші, то тяга корабля зменшується до 0
+    else{
         if(ship.thrust > 0) {
             ship.thrust = Math.max(ship.thrust - thrustDecrement * dt, 0);
         }
@@ -60,19 +60,19 @@ function integrate(ship, input, dt) { // ship - об'єкт корабля, inpu
         const localVx = ship.vx + Math.cos(ship.angle) * ship.thrust * dt;
         const localVy = ship.vy + Math.sin(ship.angle) * ship.thrust * dt;
 
-        const speed = Math.sqrt(localVx * localVx + localVy * localVy); // модуль вектора швидкості
+        const speed = Math.sqrt(localVx * localVx + localVy * localVy); // velocity vector magnitude
 
         if(speed > maxSpeed) {
             const scale = maxSpeed / speed;
             ship.vx = localVx * scale;
             ship.vy = localVy * scale;
-        } else {
+        } 
+        else {
             ship.vx = localVx;
             ship.vy = localVy;
         }
     }
     else{
-        console.log("applying drag");
         drag();
     } 
 
@@ -85,13 +85,15 @@ function integrate(ship, input, dt) { // ship - об'єкт корабля, inpu
 
         if (ship.vx > 0) {
             ship.vx = Math.max(0, ship.vx - drag);  
-        } else if (ship.vx < 0) {
+        } 
+        else if (ship.vx < 0) {
             ship.vx = Math.min(0, ship.vx + drag);  
         }
         
         if (ship.vy > 0) {
             ship.vy = Math.max(0, ship.vy - drag);  
-        } else if (ship.vy < 0) {
+        } 
+        else if (ship.vy < 0) {
             ship.vy = Math.min(0, ship.vy + drag);  
         }
     }
