@@ -1,24 +1,34 @@
 import { createInput } from './input.js';
 import { createLoop } from './loop.js';
-import { ship, integrate } from './sim/ship.js';
+import { Ship } from './sim/ship.js';
+import { Vector2 } from './sim/vector.js';
 import { wrap } from './sim/arena.js';
 import { drawShip, drawGrid } from './render/draw.js';
 import { configureCanvas } from './render/canvas.js';
-import { step } from '../config/settings.js';
+import { step, bulletWidth, bulletHeight } from '../config/settings.js';
 
 const canvasConfig = configureCanvas(window);
 const input = createInput(window);
+const startMainShipPos = new Vector2(window.innerWidth / 2, window.innerHeight / 2);
+const mainShipRadius = Math.sqrt(bulletWidth ** 2 + bulletHeight ** 2); // rectangle diag formula
 
-ship.x = window.innerWidth / 2; // start ship pos
-ship.y = window.innerHeight / 2;
+let mainShip = new Ship(startMainShipPos, new Vector2(0, 0), mainShipRadius, true, 0, "mainShip", input)
 
-let previous = { ...ship }; // previous ship state
+let previous = {
+  pos: new Vector2(mainShip.pos.x, mainShip.pos.y),
+  angle: mainShip.angle,
+  thrust: mainShip.thrust,
+}; // previous ship state, remove shallow copy cause equal vector2 reference
 
 function simulate(dt) {
-  previous = { ...ship };
+  previous = {
+    pos: new Vector2(mainShip.pos.x, mainShip.pos.y),
+    angle: mainShip.angle,
+    thrust: mainShip.thrust,
+  }; 
 
-  integrate(ship, input, dt); // modify inner ship state
-  wrap(ship, window.innerWidth, window.innerHeight);
+  mainShip.update(dt); // modify inner ship state
+  wrap(mainShip, window.innerWidth, window.innerHeight);
 
   input.clearJustPressed();
 }
@@ -28,19 +38,18 @@ function render(alpha, stats) {
   const hud = document.getElementById('hud');
   hud.querySelector('#steps').textContent = `Steps: ${stats.sps}`;
   hud.querySelector('#fps').textContent = `FPS: ${stats.fps.toFixed(2)}`;
-  hud.querySelector('#frameTime').textContent =
-    `Frame Time: ${stats.frameTime.toFixed(2)} ms`;
+  hud.querySelector('#frameTime').textContent = `Frame Time: ${stats.frameTime.toFixed(2)} ms`;
 
   ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
 
-  const angleChange = getAngleDelta(previous.angle, ship.angle);
+  const angleChange = getAngleDelta(previous.angle, mainShip.angle);
 
   const interpolatedShip = {
     // interpolation between ship states
-    x: previous.x + (ship.x - previous.x) * alpha,
-    y: previous.y + (ship.y - previous.y) * alpha,
+    x: previous.pos.x + (mainShip.pos.x - previous.pos.x) * alpha,
+    y: previous.pos.y + (mainShip.pos.y - previous.pos.y) * alpha,
     angle: previous.angle + angleChange * alpha,
-    thrust: previous.thrust + (ship.thrust - previous.thrust) * alpha,
+    thrust: previous.thrust + (mainShip.thrust - previous.thrust) * alpha,
     angleChange,
   };
 
