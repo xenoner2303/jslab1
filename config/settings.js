@@ -23,3 +23,14 @@ export const gridColor = 'gray';
 // setup configuration
 export const step = 1 / 60;
 export const gridSize = 50;
+
+// miniRockets
+export const rocketTtl = 10; // in seconds
+
+// bliblies
+export const blibliesCount = 5
+export const maxBliblieSpeed = 50; // in seconds
+export const bliblieMaxWidth = 50;
+export const bliblieHeight = 80;
+export const bliblieWidth = 10;
+export const bliblieMinHeight = 20;

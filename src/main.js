@@ -1,6 +1,7 @@
 import { createInput } from './input.js';
 import { createLoop } from './loop.js';
 import { Ship } from './sim/ship.js';
+import { World } from './sim/world.js';
 import { Vector2 } from './sim/vector.js';
 import { wrap } from './sim/arena.js';
 import { drawShip, drawGrid } from './render/draw.js';
@@ -9,10 +10,12 @@ import { step, bulletWidth, bulletHeight } from '../config/settings.js';
 
 const canvasConfig = configureCanvas(window);
 const input = createInput(window);
+const world = new World(window.innerWidth, window.innerHeight);
 const startMainShipPos = new Vector2(window.innerWidth / 2, window.innerHeight / 2);
 const mainShipRadius = Math.sqrt(bulletWidth ** 2 + bulletHeight ** 2); // rectangle diag formula
 
-let mainShip = new Ship(startMainShipPos, new Vector2(0, 0), mainShipRadius, true, 0, "mainShip", input)
+let mainShip = new Ship(startMainShipPos, new Vector2(0, 0), mainShipRadius, 0, "mainShip", input)
+world.spawn(mainShip);
 
 let previous = {
   pos: new Vector2(mainShip.pos.x, mainShip.pos.y),
@@ -27,7 +30,7 @@ function simulate(dt) {
     thrust: mainShip.thrust,
   }; 
 
-  mainShip.update(dt); // modify inner ship state
+  world.step(dt, input);
   wrap(mainShip, window.innerWidth, window.innerHeight);
 
   input.clearJustPressed();

@@ -10,8 +10,8 @@ import {
 } from '../../config/settings.js';
 
 class Ship extends Entity {
-  constructor(pos, vel, radius, alive, angle, kind, input){
-    super(pos, vel, radius, alive, angle, kind);
+  constructor(pos, vel, radius, angle, kind, input){
+    super(pos, vel, radius, true, angle, kind);
 
     this.thrust = 0;
     this.input = input;
