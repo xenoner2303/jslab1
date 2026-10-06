@@ -34,3 +34,6 @@ export const bliblieMaxWidth = 50;
 export const bliblieHeight = 80;
 export const bliblieWidth = 10;
 export const bliblieMinHeight = 20;
+export const bliblieFillStyle = 'purple';
+export const bliblieEyeFillStyle = 'white';
+export const bliblieStrokeStyle = 'black';

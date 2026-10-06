@@ -6,13 +6,25 @@ function wrap(ship, width, height) {
 }
 
 function bounce(something, width, height) {
-  if (something.pos.x < 0 || something.pos.x > width) something.vel.x = -something.vel.x;
-  if (something.pos.y < 0 || something.pos.y > height) something.vel.y = -something.vel.y;
+  if (something.pos.x - something.radius < 0) {
+    something.vel.x = Math.abs(something.vel.x);
+    something.pos.x = something.radius;
+  }
 
-  if (something.pos.x < 0) something.pos.x = 0;
-  if (something.pos.x > width) something.pos.x = width;
-  if (something.pos.y < 0) something.pos.y = 0;
-  if (something.pos.y > height) something.pos.y = height;
+  if (something.pos.x + something.radius > width) {
+    something.vel.x = -Math.abs(something.vel.x);
+    something.pos.x = width - something.radius;
+  }
+
+  if (something.pos.y - something.radius < 0) {
+    something.vel.y = Math.abs(something.vel.y);
+    something.pos.y = something.radius;
+  }
+
+  if (something.pos.y + something.radius > height) {
+    something.vel.y = -Math.abs(something.vel.y);
+    something.pos.y = height - something.radius;
+  }
 }
 
 export { wrap, bounce };

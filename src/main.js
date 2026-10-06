@@ -4,7 +4,7 @@ import { Ship } from './sim/ship.js';
 import { World } from './sim/world.js';
 import { Vector2 } from './sim/vector.js';
 import { wrap } from './sim/arena.js';
-import { drawShip, drawGrid } from './render/draw.js';
+import { drawShip, drawGrid, drawBliBlie } from './render/draw.js';
 import { configureCanvas } from './render/canvas.js';
 import { step, bulletWidth, bulletHeight } from '../config/settings.js';
 
@@ -44,6 +44,10 @@ function render(alpha, stats) {
   hud.querySelector('#frameTime').textContent = `Frame Time: ${stats.frameTime.toFixed(2)} ms`;
 
   ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+
+  for (const entity of world.ofKind("bliblie")) {
+    drawBliBlie(ctx, entity);
+  }
 
   const angleChange = getAngleDelta(previous.angle, mainShip.angle);
 
