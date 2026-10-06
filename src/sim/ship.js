@@ -1,3 +1,5 @@
+import {Entity} from "./entity.js"
+
 import {
   maxSpeed,
   angleSpeed,
@@ -7,94 +9,102 @@ import {
   dragSpeed,
 } from '../../config/settings.js';
 
-const ship = {
-  x: 0,
-  y: 0,
-  vx: 0,
-  vy: 0,
-  angle: 0,
-  thrust: 0,
-};
+class Ship extends Entity {
+  constructor(pos, vel, radius, alive, angle, kind, input){
+    super(pos, vel, radius, alive, angle, kind);
 
-function integrate(ship, input, dt) {
-  if (input.isJustPressed('KeyA')) {
-    console.log('started turning left');
+    this.thrust = 0;
+    this.input = input;
   }
 
-  if (input.isJustPressed('KeyD')) {
-    console.log('started turning right');
-  }
+  #drag(dt) {
+    const dragAmount = dragSpeed * dt;
 
-  if (input.isJustPressed('KeyW')) {
-    console.log('started moving forward');
-  }
+    if (this.vel.x > 0) {
+      this.vel.x = Math.max(0, this.vel.x - dragAmount);
+    } 
+    else if (this.vel.x < 0) {
+      this.vel.x = Math.min(0, this.vel.x + dragAmount);
+    }
 
-  if (input.isJustPressed('KeyS')) {
-    console.log('started moving backward');
-  }
-
-  let inputAngle = 0;
-  if (input.isDown('KeyA')) inputAngle -= 1;
-  if (input.isDown('KeyD')) inputAngle += 1;
-
-  if (inputAngle < 0) {
-    ship.angle -= ((angleSpeed * Math.PI) / 180) * dt;
-  } else if (inputAngle > 0) {
-    ship.angle += ((angleSpeed * Math.PI) / 180) * dt;
-  }
-
-  let inputThrust = 0;
-  if (input.isDown('KeyW')) inputThrust += 1;
-  if (input.isDown('KeyS')) inputThrust -= 1;
-
-  if (inputThrust > 0) {
-    ship.thrust = Math.min(ship.thrust + thrustIncrement * dt, maxThrust);
-  } else if (inputThrust < 0) {
-    ship.thrust = Math.max(ship.thrust - thrustIncrement * dt, -maxThrust);
-  } else {
-    if (ship.thrust > 0) {
-      ship.thrust = Math.max(ship.thrust - thrustDecrement * dt, 0);
-    } else if (ship.thrust < 0) {
-      ship.thrust = Math.min(ship.thrust + thrustDecrement * dt, 0);
+    if (this.vel.y > 0) {
+      this.vel.y = Math.max(0, this.vel.y - dragAmount);
+    } 
+    else if (this.vel.y < 0) {
+      this.vel.y = Math.min(0, this.vel.y + dragAmount);
     }
   }
+  
+  update(dt) {
+    if (this.input.isJustPressed('KeyA')) {
+      console.log('started turning left');
+    }
 
-  if (ship.thrust != 0) {
-    const localVx = ship.vx + Math.cos(ship.angle) * ship.thrust * dt;
-    const localVy = ship.vy + Math.sin(ship.angle) * ship.thrust * dt;
+    if (this.input.isJustPressed('KeyD')) {
+      console.log('started turning right');
+    }
+
+    if (this.input.isJustPressed('KeyW')) {
+      console.log('started moving forward');
+    }
+
+    if (this.input.isJustPressed('KeyS')) {
+      console.log('started moving backward');
+    }
+
+    let inputAngle = 0;
+    if (this.input.isDown('KeyA')) inputAngle -= 1;
+    if (this.input.isDown('KeyD')) inputAngle += 1;
+
+    if (inputAngle < 0) {
+      this.angle -= ((angleSpeed * Math.PI) / 180) * dt;
+    } 
+    else if (inputAngle > 0) {
+      this.angle += ((angleSpeed * Math.PI) / 180) * dt;
+    }
+
+    let inputThrust = 0;
+    if (this.input.isDown('KeyW')) inputThrust += 1;
+    if (this.input.isDown('KeyS')) inputThrust -= 1;
+
+    if (inputThrust > 0) {
+      this.thrust = Math.min(this.thrust + thrustIncrement * dt, maxThrust);
+    } 
+    else if (inputThrust < 0) {
+      this.thrust = Math.max(this.thrust - thrustIncrement * dt, -maxThrust);
+    } 
+    else {
+      if (this.thrust > 0) {
+        this.thrust = Math.max(this.thrust - thrustDecrement * dt, 0);
+      } 
+      else if (this.thrust < 0) {
+        this.thrust = Math.min(this.thrust + thrustDecrement * dt, 0);
+      }
+    }
+
+  if (this.thrust != 0) {
+    const localVx = this.vel.x + Math.cos(this.angle) * this.thrust * dt;
+    const localVy = this.vel.y + Math.sin(this.angle) * this.thrust * dt;
 
     const speed = Math.sqrt(localVx * localVx + localVy * localVy); // velocity vector magnitude
 
     if (speed > maxSpeed) {
       const scale = maxSpeed / speed;
-      ship.vx = localVx * scale;
-      ship.vy = localVy * scale;
-    } else {
-      ship.vx = localVx;
-      ship.vy = localVy;
+      this.vel.x = localVx * scale;
+      this.vel.y = localVy * scale;
+    } 
+    else {
+      this.vel.x = localVx;
+      this.vel.y = localVy;
     }
-  } else {
-    drag();
+  } 
+  else {
+    this.#drag(dt);
   }
 
-  ship.x += ship.vx * dt;
-  ship.y += ship.vy * dt;
-
-  function drag() {
-    const drag = dragSpeed * dt;
-
-    if (ship.vx > 0) {
-      ship.vx = Math.max(0, ship.vx - drag);
-    } else if (ship.vx < 0) {
-      ship.vx = Math.min(0, ship.vx + drag);
-    }
-
-    if (ship.vy > 0) {
-      ship.vy = Math.max(0, ship.vy - drag);
-    } else if (ship.vy < 0) {
-      ship.vy = Math.min(0, ship.vy + drag);
-    }
-  }
+  this.pos.x += this.vel.x * dt;
+  this.pos.y += this.vel.y * dt;
+}
 }
 
-export { ship, integrate };
+export { Ship };
