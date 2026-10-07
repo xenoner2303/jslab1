@@ -12,6 +12,13 @@ import {
   bulletBackThurstColor,
   bulletThurstLineWidth,
   bulletThurstLineCount,
+  bliblieFillStyle,
+  bliblieEyeFillStyle,
+  bliblieStrokeStyle,
+  miniRocketHeight,
+  miniRocketWidth,
+  miniRocketFillStyle,
+  miniRocketFlameFillStyle
 } from '../../config/settings.js';
 
 function drawShip(ctx, ship) {
@@ -114,4 +121,74 @@ function drawGrid(ctx, width, height) {
   }
 }
 
-export { drawShip, drawGrid };
+function drawBliBlie(ctx, bliblie) {
+  ctx.save();
+
+  ctx.translate(bliblie.pos.x, bliblie.pos.y);
+  ctx.fillStyle = bliblieFillStyle;
+  ctx.strokeStyle = bliblieStrokeStyle;
+  
+  // head
+  ctx.beginPath();
+  ctx.arc(0, -20, 10, 0, Math.PI * 2);
+  ctx.fill();
+
+  // eyes
+  ctx.fillStyle = bliblieEyeFillStyle;
+
+  ctx.beginPath();
+  ctx.arc(-4, -22, 2, 0, Math.PI * 2);
+  ctx.arc(4, -22, 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // body
+  ctx.fillStyle = bliblieFillStyle;
+  ctx.fillRect(-8, -10, 16, 25);
+
+  // arms
+  ctx.beginPath();
+  ctx.moveTo(-8, -5);
+  ctx.lineTo(-18, 5);
+  ctx.moveTo(8, -5);
+  ctx.lineTo(18, 5);
+  ctx.stroke();
+
+  // feet
+  ctx.beginPath();
+  ctx.moveTo(-5, 15);
+  ctx.lineTo(-10, 27);
+  ctx.moveTo(5, 15);
+  ctx.lineTo(10, 27);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function drawMiniRocket(ctx, rocket) {
+  ctx.save();
+
+  ctx.translate(rocket.pos.x, rocket.pos.y);
+  ctx.rotate(rocket.angle);
+
+  // body
+  ctx.fillStyle = miniRocketFillStyle;
+  ctx.fillRect(
+    -miniRocketHeight / 2,
+    -miniRocketWidth / 2,
+    miniRocketHeight,
+    miniRocketWidth
+  );
+
+  // flame
+  ctx.fillStyle = miniRocketFlameFillStyle;
+  ctx.fillRect(
+    -miniRocketHeight / 2,
+    -miniRocketWidth / 2,
+    5,
+    miniRocketWidth
+  );
+
+  ctx.restore();
+}
+
+export { drawShip, drawGrid, drawBliBlie, drawMiniRocket };

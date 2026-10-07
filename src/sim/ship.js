@@ -10,11 +10,12 @@ import {
 } from '../../config/settings.js';
 
 class Ship extends Entity {
-  constructor(pos, vel, radius, alive, angle, kind, input){
-    super(pos, vel, radius, alive, angle, kind);
+  constructor(pos, vel, radius, angle, kind, input){
+    super(pos, vel, radius, true, angle, kind);
 
     this.thrust = 0;
     this.input = input;
+    this.fireRequested = false;
   }
 
   #drag(dt) {
@@ -36,6 +37,10 @@ class Ship extends Entity {
   }
   
   update(dt) {
+    if (this.input.isJustPressed('Space')) {
+      this.fireRequested = true;
+    }
+
     if (this.input.isJustPressed('KeyA')) {
       console.log('started turning left');
     }
