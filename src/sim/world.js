@@ -19,6 +19,17 @@ class World {
         this.height = height;
     }
 
+    #getRandomFreeSpot(radius) {
+        let potentialSpot = new Vector2(Math.random() * this.width, Math.random() * this.height);
+        const aliveEntities = [...this].filter(e => e.alive);
+
+        while (!checkSpot(potentialSpot, radius, aliveEntities)) {
+            potentialSpot = new Vector2(Math.random() * this.width, Math.random() * this.height);
+        }
+
+        return potentialSpot;
+    }
+
     spawn(e) {
         if (!(e instanceof Entity)) {
             throw new Error("Trying add noEntity to entities");
@@ -62,8 +73,6 @@ class World {
             const difference = blibliesCount - count;
 
             for(let i = 0; i < difference; i++){
-                const newPosition = new Vector2(Math.random() * this.width, Math.random() * this.height);
-                
                 const speedXDirection = Math.random() < 0.5 ? 1 : -1;
                 const speedYDirection = Math.random() < 0.5 ? 1 : -1;
 
@@ -72,6 +81,7 @@ class World {
                     Math.random() * maxBliblieSpeed * speedYDirection);
                 
                 const bliblieRadius = Math.sqrt(bliblieWidth ** 2 + bliblieHeight ** 2) / 2; // rectangle diag formula
+                const newPosition = this.#getRandomFreeSpot(bliblieRadius);
 
                 const newBliBlie = new BliBlie(newPosition, newVelocity, bliblieRadius, 0, "bliblie");
                 this.spawn(newBliBlie);
@@ -122,7 +132,7 @@ class World {
 
                 rocket.alive = false;
                 bliblie.alive = false;
-                bliblie.owner.score += 1;
+                rocket.owner.score += 1;
             }
 
             if ((a.kind == "mainShip" && b.kind == "bliblie") ||
@@ -157,15 +167,7 @@ class World {
             if (!entity.alive) {
                 if (entity.kind == "mainShip") { // ship respawns
                     if (entity.updateRespawn(dt)) {
-                        let potentialSpot = new Vector2(Math.random() * this.width, Math.random() * this.height);
-
-                        const aliveEntities = [...this].filter(e => e.alive); // onlie alive entities
-
-                        while (!checkSpot(potentialSpot, entity.radius, aliveEntities)) {
-                            potentialSpot = new Vector2(Math.random() * this.width, Math.random() * this.height);
-                        }
-
-                        entity.pos = potentialSpot;
+                        entity.pos = this.#getRandomFreeSpot(entity.radius);
                     }
                 } 
                 else {

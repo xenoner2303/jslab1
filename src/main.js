@@ -55,7 +55,7 @@ function render(alpha, stats) {
   }
 
   for (const entity of world.ofKind("explosion")) {
-      drawExplosion(ctx, entity.pos);
+    drawExplosion(ctx, entity);
   }
 
   const angleChange = getAngleDelta(previous.angle, mainShip.angle);

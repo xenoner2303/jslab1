@@ -3,7 +3,7 @@ import {Entity} from "./entity.js"
 import { rocketTtl } from '../../config/settings.js';
 
 class MiniRocket extends Entity {
-  #ttl = explosionTtl;
+  #ttl = rocketTtl;
 
   constructor(pos, vel, radius, angle, kind, owner){
     super(pos, vel, radius, true, angle, kind);

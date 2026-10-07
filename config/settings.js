@@ -24,6 +24,7 @@ export const bulletThurstLineWidth = 2;
 export const bulletThurstLineCount = 3;
 export const bulletAnglePower = 3;
 export const gridColor = 'gray';
+export const explosionTtl = 1;
 export const explosionParticleCount = 16;
 export const explosionParticleMinSize = 2;
 export const explosionParticleMaxSize = 5;
