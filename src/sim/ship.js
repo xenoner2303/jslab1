@@ -7,15 +7,32 @@ import {
   thrustIncrement,
   thrustDecrement,
   dragSpeed,
+  maxShipHp
 } from '../../config/settings.js';
 
 class Ship extends Entity {
+  #hp = 0;
+
   constructor(pos, vel, radius, angle, kind, input){
     super(pos, vel, radius, true, angle, kind);
 
     this.thrust = 0;
     this.input = input;
     this.fireRequested = false;
+    this.#hp = maxShipHp;
+  }
+
+  get hp(){
+    return this.#hp;
+  }
+
+  hit(amount){
+      this.#hp -= amount;
+
+      if (this.#hp <= 0) {
+          this.#hp = 0;
+          this.alive = false;
+      }
   }
 
   #drag(dt) {

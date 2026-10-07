@@ -1,9 +1,11 @@
 import { BliBlie } from "./bliblie.js";
 import {Entity} from "./entity.js"
 import { Vector2 } from "./vector.js";
-import {blibliesCount, maxBliblieSpeed, bliblieHeight, bliblieWidth, miniRocketSpeed, bulletWidth, bulletHeight, miniRocketHeight, miniRocketWidth} from "../../config/settings.js"
+import {blibliesCount, maxBliblieSpeed, bliblieHeight, bliblieWidth, miniRocketSpeed, damageFromObjects, damageFromMiniRocket, miniRocketHeight, miniRocketWidth} from "../../config/settings.js"
 import { bounce } from "./arena.js";
 import { MiniRocket } from "./miniRocket.js";
+import {entitiesCollision} from "./collision.js";
+import { Ship } from "./ship.js";
 
 class World {
     #entities = new Map(); // entities storage/ key - id
@@ -97,6 +99,42 @@ class World {
 
             if(entity instanceof BliBlie){
                 bounce(entity, this.width, this.height);
+            }
+        }
+
+        const collisions = entitiesCollision([...this]);
+
+        for (const [a, b] of collisions) {
+            if(a.kind == b.kind){
+                a.vel = new Vector2(-a.vel.x, -a.vel.y);
+                b.vel = new Vector2(-b.vel.x, -b.vel.y);
+            }
+
+            if ((a.kind === "miniRocket" && b.kind === "bliblie") ||
+                (a.kind === "bliblie" && b.kind === "miniRocket"))
+            {
+                const rocket = a.kind === "miniRocket" ? a : b;
+                const bliblie = a.kind === "bliblie" ? a : b;
+
+                rocket.alive = false;
+                bliblie.alive = false;
+            }
+
+            if ((a.kind == "mainShip" && b.kind == "bliblie") ||
+                (a.kind == "bliblie" && b.kind == "mainShip")) 
+            {
+                const ship = a.kind == "mainShip" ? a : b;
+                ship.hit(damageFromObjects);
+            }
+
+            if ((a.kind == "mainShip" && b.kind == "miniRocket") ||
+                (a.kind == "miniRocket" && b.kind == "mainShip")) 
+            {
+                const ship = a.kind =="mainShip" ? a : b;
+                const rocket = a.kind == "miniRocket" ? a : b;
+
+                ship.hit(damageFromMiniRocket);
+                rocket.alive = false;
             }
         }
 

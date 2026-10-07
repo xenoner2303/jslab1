@@ -5,6 +5,9 @@ export const maxThrust = 100;
 export const thrustIncrement = 20;
 export const thrustDecrement = 80;
 export const dragSpeed = 40;
+export const maxShipHp = 5;
+export const damageFromObjects = 1;
+export const damageFromMiniRocket = 2;
 
 // ship drawing params
 export const bulletWidth = 25;
