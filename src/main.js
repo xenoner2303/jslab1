@@ -15,9 +15,7 @@ const startMainShipPos = new Vector2(window.innerWidth / 2, window.innerHeight /
 const mainShipRadius = Math.sqrt(bulletWidth ** 2 + bulletHeight ** 2) / 2; // rectangle diag formula
 
 let mainShip = new Ship(startMainShipPos, new Vector2(0, 0), mainShipRadius, 0, "mainShip", input);
-
-const fire = mainShip.fire;
-fire(); // should be typerrror, because we invoke this method as no Ship method with this == undefined
+window.addEventListener('keydown', mainShip.fire); // this loses Ship context and caused undefined inside fire (this became window)
 
 world.spawn(mainShip);
 

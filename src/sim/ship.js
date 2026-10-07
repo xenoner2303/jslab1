@@ -112,6 +112,7 @@ class Ship extends Entity {
   }
 
   fire() {
+    console.log("this:", this);
     this.fireRequested = true;
   }
 
