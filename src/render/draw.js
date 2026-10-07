@@ -14,7 +14,11 @@ import {
   bulletThurstLineCount,
   bliblieFillStyle,
   bliblieEyeFillStyle,
-  bliblieStrokeStyle
+  bliblieStrokeStyle,
+  miniRocketHeight,
+  miniRocketWidth,
+  miniRocketFillStyle,
+  miniRocketFlameFillStyle
 } from '../../config/settings.js';
 
 function drawShip(ctx, ship) {
@@ -160,4 +164,31 @@ function drawBliBlie(ctx, bliblie) {
   ctx.restore();
 }
 
-export { drawShip, drawGrid, drawBliBlie };
+function drawMiniRocket(ctx, rocket) {
+  ctx.save();
+
+  ctx.translate(rocket.pos.x, rocket.pos.y);
+  ctx.rotate(rocket.angle);
+
+  // body
+  ctx.fillStyle = miniRocketFillStyle;
+  ctx.fillRect(
+    -miniRocketHeight / 2,
+    -miniRocketWidth / 2,
+    miniRocketHeight,
+    miniRocketWidth
+  );
+
+  // flame
+  ctx.fillStyle = miniRocketFlameFillStyle;
+  ctx.fillRect(
+    -miniRocketHeight / 2,
+    -miniRocketWidth / 2,
+    5,
+    miniRocketWidth
+  );
+
+  ctx.restore();
+}
+
+export { drawShip, drawGrid, drawBliBlie, drawMiniRocket };

@@ -15,6 +15,7 @@ class Ship extends Entity {
 
     this.thrust = 0;
     this.input = input;
+    this.fireRequested = false;
   }
 
   #drag(dt) {
@@ -36,6 +37,10 @@ class Ship extends Entity {
   }
   
   update(dt) {
+    if (this.input.isJustPressed('Space')) {
+      this.fireRequested = true;
+    }
+
     if (this.input.isJustPressed('KeyA')) {
       console.log('started turning left');
     }

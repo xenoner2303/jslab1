@@ -1,8 +1,9 @@
 import { BliBlie } from "./bliblie.js";
 import {Entity} from "./entity.js"
 import { Vector2 } from "./vector.js";
-import {blibliesCount, maxBliblieSpeed, bliblieHeight, bliblieWidth} from "../../config/settings.js"
+import {blibliesCount, maxBliblieSpeed, bliblieHeight, bliblieWidth, miniRocketSpeed, bulletWidth, bulletHeight, miniRocketHeight, miniRocketWidth} from "../../config/settings.js"
 import { bounce } from "./arena.js";
+import { MiniRocket } from "./miniRocket.js";
 
 class World {
     #entities = new Map(); // entities storage/ key - id
@@ -70,13 +71,27 @@ class World {
                     Math.random() * maxBliblieSpeed * speedXDirection,
                     Math.random() * maxBliblieSpeed * speedYDirection);
                 
-                const bliblieRadius = Math.sqrt(bliblieWidth ** 2 + bliblieHeight ** 2); // rectangle diag formula
+                const bliblieRadius = Math.sqrt(bliblieWidth ** 2 + bliblieHeight ** 2) / 2; // rectangle diag formula
 
                 const newBliBlie = new BliBlie(newPosition, newVelocity, bliblieRadius, 0, "bliblie");
                 this.spawn(newBliBlie);
             }
         }
         
+        for (const entity of this.ofKind("mainShip")) {
+            if (entity.fireRequested) {
+                entity.fireRequested = false;
+
+                const direction = Vector2.fromAngle(entity.angle); // for direction
+                const shipNose = entity.pos.add(direction.scale(entity.radius)); // receive new Vector2
+                const rocketVelocity = direction.scale(miniRocketSpeed);
+                const rocketRadius = Math.sqrt(miniRocketWidth ** 2 + miniRocketHeight ** 2) / 2; // rectangle diag formula
+
+                const miniRocket = new MiniRocket(shipNose, rocketVelocity, rocketRadius, entity.angle, "miniRocket");
+                this.spawn(miniRocket);
+            }
+        }
+
         for (const entity of this) {
             entity.update(dt);
 
