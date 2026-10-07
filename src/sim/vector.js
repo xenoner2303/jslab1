@@ -31,7 +31,6 @@ class Vector2{
         return local; // new vector - pure method
     }
 
-
     length() {
         return Math.sqrt(this.x ** 2 + this.y ** 2);
     }
