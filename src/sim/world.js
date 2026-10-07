@@ -1,9 +1,11 @@
 import { BliBlie } from "./bliblie.js";
 import {Entity} from "./entity.js"
 import { Vector2 } from "./vector.js";
-import {blibliesCount, maxBliblieSpeed, bliblieHeight, bliblieWidth, miniRocketSpeed, bulletWidth, bulletHeight, miniRocketHeight, miniRocketWidth} from "../../config/settings.js"
+import {blibliesCount, maxBliblieSpeed, bliblieHeight, bliblieWidth, miniRocketSpeed, damageFromObjects, damageFromMiniRocket, miniRocketHeight, miniRocketWidth} from "../../config/settings.js"
 import { bounce } from "./arena.js";
 import { MiniRocket } from "./miniRocket.js";
+import {entitiesCollision, checkSpot} from "./collision.js";
+import { Explosion } from "./explosion.js";
 
 class World {
     #entities = new Map(); // entities storage/ key - id
@@ -15,6 +17,17 @@ class World {
 
         this.width = width;
         this.height = height;
+    }
+
+    #getRandomFreeSpot(radius) {
+        let potentialSpot = new Vector2(Math.random() * this.width, Math.random() * this.height);
+        const aliveEntities = [...this].filter(e => e.alive);
+
+        while (!checkSpot(potentialSpot, radius, aliveEntities)) {
+            potentialSpot = new Vector2(Math.random() * this.width, Math.random() * this.height);
+        }
+
+        return potentialSpot;
     }
 
     spawn(e) {
@@ -60,10 +73,6 @@ class World {
             const difference = blibliesCount - count;
 
             for(let i = 0; i < difference; i++){
-                const newPosition = new Vector2(
-                    Math.random() * this.width,
-                    Math.random() * this.height);
-                
                 const speedXDirection = Math.random() < 0.5 ? 1 : -1;
                 const speedYDirection = Math.random() < 0.5 ? 1 : -1;
 
@@ -72,6 +81,7 @@ class World {
                     Math.random() * maxBliblieSpeed * speedYDirection);
                 
                 const bliblieRadius = Math.sqrt(bliblieWidth ** 2 + bliblieHeight ** 2) / 2; // rectangle diag formula
+                const newPosition = this.#getRandomFreeSpot(bliblieRadius);
 
                 const newBliBlie = new BliBlie(newPosition, newVelocity, bliblieRadius, 0, "bliblie");
                 this.spawn(newBliBlie);
@@ -79,15 +89,17 @@ class World {
         }
         
         for (const entity of this.ofKind("mainShip")) {
-            if (entity.fireRequested) {
+            if (entity.fireRequested) 
+            {
                 entity.fireRequested = false;
-
+                
                 const direction = Vector2.fromAngle(entity.angle); // for direction
-                const shipNose = entity.pos.add(direction.scale(entity.radius)); // receive new Vector2
-                const rocketVelocity = direction.scale(miniRocketSpeed);
                 const rocketRadius = Math.sqrt(miniRocketWidth ** 2 + miniRocketHeight ** 2) / 2; // rectangle diag formula
+                const spawnDistance = entity.radius + rocketRadius + 2; // ro avoid collisison riocket iisue
+                const shipNose = entity.pos.add(direction.scale(spawnDistance)); // receive new Vector2
+                const rocketVelocity = direction.scale(miniRocketSpeed);
 
-                const miniRocket = new MiniRocket(shipNose, rocketVelocity, rocketRadius, entity.angle, "miniRocket");
+                const miniRocket = new MiniRocket(shipNose, rocketVelocity, rocketRadius, entity.angle, "miniRocket", entity);
                 this.spawn(miniRocket);
             }
         }
@@ -95,14 +107,72 @@ class World {
         for (const entity of this) {
             entity.update(dt);
 
-            if(entity instanceof BliBlie){
+            if(entity.kind == "bliblie"){
                 bounce(entity, this.width, this.height);
             }
         }
 
+        const collisions = entitiesCollision([...this]);
+
+        for (const [a, b] of collisions) {
+            if (!a.alive || !b.alive) continue;
+
+            if ((a.kind == "bliblie" && b.kind == "bliblie") ||
+                (a.kind == "mainShip" && b.kind == "mainShip"))
+            {
+                a.vel = new Vector2(-a.vel.x, -a.vel.y);
+                b.vel = new Vector2(-b.vel.x, -b.vel.y);
+            }
+
+            if ((a.kind == "miniRocket" && b.kind == "bliblie") ||
+                (a.kind == "bliblie" && b.kind == "miniRocket"))
+            {
+                const rocket = a.kind == "miniRocket" ? a : b;
+                const bliblie = a.kind == "bliblie" ? a : b;
+
+                rocket.alive = false;
+                bliblie.alive = false;
+                rocket.owner.score += 1;
+            }
+
+            if ((a.kind == "mainShip" && b.kind == "bliblie") ||
+                (a.kind == "bliblie" && b.kind == "mainShip")) 
+            {
+                const ship = a.kind == "mainShip" ? a : b;
+                const bliblie = a.kind == "bliblie" ? a : b;
+
+                if (ship.hit(damageFromObjects)) {
+                    this.spawn(new Explosion(ship.pos));
+                }
+
+                bliblie.vel = new Vector2(-bliblie.vel.x, -bliblie.vel.y);
+                ship.vel = new Vector2(-ship.vel.x, -ship.vel.y);
+            }
+
+            if ((a.kind == "mainShip" && b.kind == "miniRocket") ||
+                (a.kind == "miniRocket" && b.kind == "mainShip")) 
+            {
+                const ship = a.kind =="mainShip" ? a : b;
+                const rocket = a.kind == "miniRocket" ? a : b;
+
+                if (ship.hit(damageFromMiniRocket)) {
+                    this.spawn(new Explosion(ship.pos));
+                }
+
+                rocket.alive = false;
+            }
+        }
+
         for (const entity of this) {
-            if(!entity.alive){
-                this.#entities.delete(entity.id);
+            if (!entity.alive) {
+                if (entity.kind == "mainShip") { // ship respawns
+                    if (entity.updateRespawn(dt)) {
+                        entity.pos = this.#getRandomFreeSpot(entity.radius);
+                    }
+                } 
+                else {
+                    this.#entities.delete(entity.id);
+                }
             }
         }
     }

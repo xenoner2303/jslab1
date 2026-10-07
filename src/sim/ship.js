@@ -7,15 +7,56 @@ import {
   thrustIncrement,
   thrustDecrement,
   dragSpeed,
+  maxShipHp,
+  shipRespawnTime
 } from '../../config/settings.js';
+import { Vector2 } from "./vector.js";
 
 class Ship extends Entity {
+  #hp = 0;
+  #respawnTimer = 0;
+
   constructor(pos, vel, radius, angle, kind, input){
     super(pos, vel, radius, true, angle, kind);
 
     this.thrust = 0;
     this.input = input;
     this.fireRequested = false;
+    this.#hp = maxShipHp;
+    this.score = 0;
+  }
+
+  get hp(){
+    return this.#hp;
+  }
+
+  hit(amount) {
+    this.#hp -= amount;
+
+    if (this.#hp <= 0) {
+        this.#hp = 0;
+        this.alive = false;
+        this.#respawnTimer = shipRespawnTime;
+        this.vel = new Vector2(0, 0);
+
+        return true;
+    }
+
+    return false;
+  }
+
+  updateRespawn(dt) { // respawn timer
+    if (this.alive) return false;
+
+    this.#respawnTimer -= dt;
+
+    if (this.#respawnTimer <= 0) {
+        this.#hp = maxShipHp;
+        this.alive = true;
+        return true;
+    }
+
+    return false;
   }
 
   #drag(dt) {
@@ -37,6 +78,8 @@ class Ship extends Entity {
   }
   
   update(dt) {
+    if (!this.alive) return;
+
     if (this.input.isJustPressed('Space')) {
       this.fireRequested = true;
     }

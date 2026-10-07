@@ -18,7 +18,8 @@ import {
   miniRocketHeight,
   miniRocketWidth,
   miniRocketFillStyle,
-  miniRocketFlameFillStyle
+  miniRocketFlameFillStyle,
+  explosionColors
 } from '../../config/settings.js';
 
 function drawShip(ctx, ship) {
@@ -191,4 +192,29 @@ function drawMiniRocket(ctx, rocket) {
   ctx.restore();
 }
 
-export { drawShip, drawGrid, drawBliBlie, drawMiniRocket };
+function drawExplosion(ctx, explosion) {
+  ctx.save();
+  ctx.translate(explosion.pos.x, explosion.pos.y);
+
+  for (let i = 0; i < explosion.particles.length; i++) {
+    const particle = explosion.particles[i];
+
+    ctx.fillStyle = explosionColors[i % explosionColors.length];
+
+    ctx.beginPath();
+
+    ctx.arc(
+      particle.pos.x,
+      particle.pos.y,
+      particle.radius,
+      0,
+      Math.PI * 2
+    );
+
+    ctx.fill();
+  }
+
+  ctx.restore();
+}
+
+export { drawShip, drawGrid, drawBliBlie, drawMiniRocket, drawExplosion };
