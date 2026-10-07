@@ -38,7 +38,7 @@ class Ship extends Entity {
   
   update(dt) {
     if (this.input.isJustPressed('Space')) {
-      this.fireRequested = true;
+      this.fire();
     }
 
     if (this.input.isJustPressed('KeyA')) {
@@ -87,29 +87,34 @@ class Ship extends Entity {
       }
     }
 
-  if (this.thrust != 0) {
-    const localVx = this.vel.x + Math.cos(this.angle) * this.thrust * dt;
-    const localVy = this.vel.y + Math.sin(this.angle) * this.thrust * dt;
+    if (this.thrust != 0) {
+      const localVx = this.vel.x + Math.cos(this.angle) * this.thrust * dt;
+      const localVy = this.vel.y + Math.sin(this.angle) * this.thrust * dt;
 
-    const speed = Math.sqrt(localVx * localVx + localVy * localVy); // velocity vector magnitude
+      const speed = Math.sqrt(localVx * localVx + localVy * localVy); // velocity vector magnitude
 
-    if (speed > maxSpeed) {
-      const scale = maxSpeed / speed;
-      this.vel.x = localVx * scale;
-      this.vel.y = localVy * scale;
+      if (speed > maxSpeed) {
+        const scale = maxSpeed / speed;
+        this.vel.x = localVx * scale;
+        this.vel.y = localVy * scale;
+      } 
+      else {
+        this.vel.x = localVx;
+        this.vel.y = localVy;
+      }
     } 
     else {
-      this.vel.x = localVx;
-      this.vel.y = localVy;
+      this.#drag(dt);
     }
-  } 
-  else {
-    this.#drag(dt);
+
+    this.pos.x += this.vel.x * dt;
+    this.pos.y += this.vel.y * dt;
   }
 
-  this.pos.x += this.vel.x * dt;
-  this.pos.y += this.vel.y * dt;
-}
+  fire() {
+    this.fireRequested = true;
+  }
+
 }
 
 export { Ship };
