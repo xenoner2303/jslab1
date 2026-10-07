@@ -9,7 +9,6 @@ export const maxShipHp = 5;
 export const damageFromObjects = 1;
 export const damageFromMiniRocket = 2;
 export const shipRespawnTime = 2; // in sec
-export const shipCollisionSlowMultiplier = 0.5
 
 // ship drawing params
 export const bulletWidth = 25;
