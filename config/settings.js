@@ -8,6 +8,8 @@ export const dragSpeed = 40;
 export const maxShipHp = 5;
 export const damageFromObjects = 1;
 export const damageFromMiniRocket = 2;
+export const shipRespawnTime = 2; // in sec
+export const shipCollisionSlowMultiplier = 0.5
 
 // ship drawing params
 export const bulletWidth = 25;
@@ -22,6 +24,11 @@ export const bulletThurstLineWidth = 2;
 export const bulletThurstLineCount = 3;
 export const bulletAnglePower = 3;
 export const gridColor = 'gray';
+export const explosionParticleCount = 16;
+export const explosionParticleMinSize = 2;
+export const explosionParticleMaxSize = 5;
+export const explosionParticleMaxSpeed = 50;
+export const explosionColors = ['#ff4500', '#ffee55'];
 
 // setup configuration
 export const step = 1 / 60;

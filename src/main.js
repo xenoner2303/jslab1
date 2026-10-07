@@ -4,7 +4,7 @@ import { Ship } from './sim/ship.js';
 import { World } from './sim/world.js';
 import { Vector2 } from './sim/vector.js';
 import { wrap } from './sim/arena.js';
-import { drawShip, drawGrid, drawBliBlie, drawMiniRocket } from './render/draw.js';
+import { drawShip, drawGrid, drawBliBlie, drawMiniRocket, drawExplosion } from './render/draw.js';
 import { configureCanvas } from './render/canvas.js';
 import { step, bulletWidth, bulletHeight } from '../config/settings.js';
 
@@ -42,6 +42,7 @@ function render(alpha, stats) {
   hud.querySelector('#steps').textContent = `Steps: ${stats.sps}`;
   hud.querySelector('#fps').textContent = `FPS: ${stats.fps.toFixed(2)}`;
   hud.querySelector('#frameTime').textContent = `Frame Time: ${stats.frameTime.toFixed(2)} ms`;
+  hud.querySelector('#score').textContent = `Score: ${mainShip.score} bliblies`;
 
   ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
 
@@ -51,6 +52,10 @@ function render(alpha, stats) {
 
   for (const entity of world.ofKind("bliblie")) {
     drawBliBlie(ctx, entity);
+  }
+
+  for (const entity of world.ofKind("explosion")) {
+      drawExplosion(ctx, entity.pos);
   }
 
   const angleChange = getAngleDelta(previous.angle, mainShip.angle);
@@ -65,7 +70,7 @@ function render(alpha, stats) {
   };
 
   drawGrid(ctx, window.innerWidth, window.innerHeight);
-  drawShip(ctx, interpolatedShip);
+  if(mainShip.alive) drawShip(ctx, interpolatedShip);
 }
 
 const loop = createLoop({

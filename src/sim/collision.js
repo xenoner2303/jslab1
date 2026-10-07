@@ -25,4 +25,16 @@ function entitiesCollision(entities) {
     return collisions;
 }
 
-export { circleCheck, entitiesCollision };
+function checkSpot(position, radius, entities) {
+    for (const entity of entities) {
+        const distance = position.sub(entity.pos).length();
+
+        if (distance <= radius + entity.radius) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+export { circleCheck, entitiesCollision, checkSpot };
