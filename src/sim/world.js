@@ -22,7 +22,8 @@ class World {
     #getRandomFreeSpot(radius) {
         let potentialSpot = new Vector2(Math.random() * this.width, Math.random() * this.height);
         const aliveEntities = [...this].filter(e => e.alive);
-
+        // const [one, two] = [1, 2];
+        
         while (!checkSpot(potentialSpot, radius, aliveEntities)) {
             potentialSpot = new Vector2(Math.random() * this.width, Math.random() * this.height);
         }
