@@ -58,7 +58,7 @@ class Vector2{
         return new Vector2(localX, localY);
     }
 
-    dot(vector) {
+    dot(vector) { // scalar multy - > 0 - in one direction, =0 perdend, <0 in diff
         const scalarMult = this.x * vector.x + this.y * vector.y;
 
         return scalarMult;

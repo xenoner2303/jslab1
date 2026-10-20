@@ -1,4 +1,5 @@
 import { createInput } from './input.js';
+import { getAngleDelta } from "./supFunctions.js";
 import { createLoop } from './loop.js';
 import { Ship } from './sim/ship.js';
 import { World } from './sim/world.js';
@@ -80,17 +81,3 @@ const loop = createLoop({
 });
 
 loop.start();
-
-function getAngleDelta(previous, current) {
-  let delta = current - previous;
-
-  if (delta > Math.PI) {
-    delta -= 2 * Math.PI;
-  }
-
-  if (delta < -Math.PI) {
-    delta += 2 * Math.PI;
-  }
-
-  return delta;
-}

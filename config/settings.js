@@ -50,3 +50,6 @@ export const bliblieWidth = 10;
 export const bliblieFillStyle = 'purple';
 export const bliblieEyeFillStyle = 'white';
 export const bliblieStrokeStyle = 'black';
+
+// homing
+export const homingDirectionChangeMultiplier = 0.1

@@ -77,8 +77,10 @@ class Ship extends Entity {
     }
   }
   
-  update(dt) {
+  update(dt, context) {
     if (!this.alive) return;
+
+    super.update(dt, context);
 
     if (this.input.isJustPressed('Space')) {
       this.fireRequested = true;

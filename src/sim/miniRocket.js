@@ -1,6 +1,6 @@
 import {Entity} from "./entity.js"
-
-import { rocketTtl } from '../../config/settings.js';
+import { Vector2 } from "./vector.js";
+import { rocketTtl, miniRocketSpeed } from '../../config/settings.js';
 
 class MiniRocket extends Entity {
   #ttl = rocketTtl;
@@ -11,14 +11,21 @@ class MiniRocket extends Entity {
     this.owner = owner;
   }
 
-  update(dt){
+  update(dt, context) {
+    if (!this.alive) return;
+
+    super.update(dt, context);
+    
+    const direction = Vector2.fromAngle(this.angle); // for direction
+    this.vel = direction.scale(miniRocketSpeed);
+
     this.#ttl -= dt;
 
     this.pos.x += this.vel.x * dt;
     this.pos.y += this.vel.y * dt;
 
     if(this.#ttl <= 0){
-        this.alive = false;
+      this.alive = false;
     }
   }
 }

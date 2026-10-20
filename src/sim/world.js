@@ -1,6 +1,7 @@
 import { BliBlie } from "./bliblie.js";
-import {Entity} from "./entity.js"
+import { Entity } from "./entity.js"
 import { Vector2 } from "./vector.js";
+import { applyHoming } from "./homing.js";
 import {blibliesCount, maxBliblieSpeed, bliblieHeight, bliblieWidth, miniRocketSpeed, damageFromObjects, damageFromMiniRocket, miniRocketHeight, miniRocketWidth} from "../../config/settings.js"
 import { bounce } from "./arena.js";
 import { MiniRocket } from "./miniRocket.js";
@@ -63,6 +64,24 @@ class World {
         }
     }
 
+    findNearestTarget(entity, kind) {
+        let nearest = null;
+        let minDistance = Math.sqrt(this.width ** 2 + this.height ** 2);
+
+        for (const current of this.ofKind(kind)) {
+            if (current.id === entity.id || !current.alive) continue;
+
+            const distance = current.pos.sub(entity.pos).length();
+
+            if (distance < minDistance) {
+                minDistance = distance;
+                nearest = current;
+            }
+        }
+
+        return nearest;
+    }
+
     step(dt, inputs) {
         let count = 0;
 
@@ -101,12 +120,20 @@ class World {
                 const rocketVelocity = direction.scale(miniRocketSpeed);
 
                 const miniRocket = new MiniRocket(shipNose, rocketVelocity, rocketRadius, entity.angle, "miniRocket", entity);
+                miniRocket.behaviors.push(applyHoming);
                 this.spawn(miniRocket);
             }
         }
 
         for (const entity of this) {
-            entity.update(dt);
+            const context = {}; // sup data for obj behavior
+
+            if (entity.kind === "miniRocket") {
+                context.target = this.findNearestTarget(entity, "bliblie");
+                context.worldEntities = this;
+            }
+
+            entity.update(dt, context);
 
             if(entity.kind == "bliblie"){
                 bounce(entity, this.width, this.height);
