@@ -5,7 +5,7 @@ export const maxThrust = 100;
 export const thrustIncrement = 20;
 export const thrustDecrement = 80;
 export const dragSpeed = 40;
-export const maxShipHp = 5;
+export const maxShipHp = 1;
 export const damageFromObjects = 1;
 export const damageFromMiniRocket = 2;
 export const shipRespawnTime = 2; // in sec
@@ -50,3 +50,17 @@ export const bliblieWidth = 10;
 export const bliblieFillStyle = 'purple';
 export const bliblieEyeFillStyle = 'white';
 export const bliblieStrokeStyle = 'black';
+
+// homing
+export const homingDirectionChangeMultiplier = 0.1
+
+// pickup
+export const barrierShieldAdditionalRadius = 4;
+export const barrierShieldStrokeStyle = "blue";
+export const barrierShieldLineWidth = 4;
+export const shieldFillColor = "blue";
+export const shieldLineWidth = 4;
+export const shieldStrokeColor = "black";
+export const pickupItemsCount = 2;
+export const shieldWidth = 40;
+export const shieldHeight = 60;

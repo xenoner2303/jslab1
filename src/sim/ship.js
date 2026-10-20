@@ -16,14 +16,15 @@ class Ship extends Entity {
   #hp = 0;
   #respawnTimer = 0;
 
-  constructor(pos, vel, radius, angle, kind, input){
-    super(pos, vel, radius, true, angle, kind);
+  constructor(pos, vel, radius, angle, input){
+    super(pos, vel, radius, true, angle, "mainShip");
 
     this.thrust = 0;
     this.input = input;
     this.fireRequested = false;
     this.#hp = maxShipHp;
     this.score = 0;
+    this.hasShield = false;
   }
 
   get hp(){
@@ -31,6 +32,11 @@ class Ship extends Entity {
   }
 
   hit(amount) {
+    if(this.hasShield){
+      this.hasShield = false;
+      return false;
+    }
+
     this.#hp -= amount;
 
     if (this.#hp <= 0) {
@@ -77,8 +83,10 @@ class Ship extends Entity {
     }
   }
   
-  update(dt) {
+  update(dt, context) {
     if (!this.alive) return;
+
+    super.update(dt, context);
 
     if (this.input.isJustPressed('Space')) {
       this.fireRequested = true;

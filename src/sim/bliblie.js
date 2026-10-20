@@ -1,8 +1,8 @@
 import {Entity} from "./entity.js"
 
 class BliBlie extends Entity {
-  constructor(pos, vel, radius, angle, kind){
-    super(pos, vel, radius, true, angle, kind);
+  constructor(pos, vel, radius, angle){
+    super(pos, vel, radius, true, angle, "bliblie");
   }
 
   update(dt){

@@ -1,14 +1,30 @@
 import { BliBlie } from "./bliblie.js";
-import {Entity} from "./entity.js"
+import { Entity } from "./entity.js"
 import { Vector2 } from "./vector.js";
-import {blibliesCount, maxBliblieSpeed, bliblieHeight, bliblieWidth, miniRocketSpeed, damageFromObjects, damageFromMiniRocket, miniRocketHeight, miniRocketWidth} from "../../config/settings.js"
+import { applyHoming } from "./homing.js";
 import { bounce } from "./arena.js";
 import { MiniRocket } from "./miniRocket.js";
 import {entitiesCollision, checkSpot} from "./collision.js";
 import { Explosion } from "./explosion.js";
+import {
+    pickupItemsCount, 
+    blibliesCount, 
+    maxBliblieSpeed, 
+    bliblieHeight, 
+    bliblieWidth, 
+    miniRocketSpeed, 
+    damageFromObjects, 
+    damageFromMiniRocket, 
+    miniRocketHeight, 
+    miniRocketWidth,
+    shieldWidth,
+    shieldHeight
+} from "../../config/settings.js"
+import { Pickup } from "./pickup.js";
 
 class World {
     #entities = new Map(); // entities storage/ key - id
+    #pickupItems = ["shield"]
 
     constructor(width, height) {
         if(!Number.isFinite(width) || !Number.isFinite(height)){
@@ -22,7 +38,8 @@ class World {
     #getRandomFreeSpot(radius) {
         let potentialSpot = new Vector2(Math.random() * this.width, Math.random() * this.height);
         const aliveEntities = [...this].filter(e => e.alive);
-
+        // const [one, two] = [1, 2];
+        
         while (!checkSpot(potentialSpot, radius, aliveEntities)) {
             potentialSpot = new Vector2(Math.random() * this.width, Math.random() * this.height);
         }
@@ -62,15 +79,38 @@ class World {
         }
     }
 
-    step(dt, inputs) {
-        let count = 0;
+    findNearestTarget(entity, kind) {
+        let nearest = null;
+        let minDistance = Math.sqrt(this.width ** 2 + this.height ** 2);
 
-        for (const entity of this.ofKind("bliblie")) {
-            count++;
+        for (const current of this.ofKind(kind)) {
+            if (current.id === entity.id || !current.alive) continue;
+
+            const distance = current.pos.sub(entity.pos).length();
+
+            if (distance < minDistance) {
+                minDistance = distance;
+                nearest = current;
+            }
         }
 
-        if (count < blibliesCount) { // if bliblie < 5 we spawn new
-            const difference = blibliesCount - count;
+        return nearest;
+    }
+
+    step(dt, inputs) {
+        let localBlibliesCount = 0;
+        let localPickupItemsCount = 0;
+
+        for (const entity of this.ofKind("bliblie")) {
+            localBlibliesCount++;
+        }
+
+        for (const entity of this.ofKind("pickup")) {
+            localPickupItemsCount++;
+        }
+
+        if (localBlibliesCount < blibliesCount) { // if bliblie < 5 we spawn new
+            const difference = blibliesCount - localBlibliesCount;
 
             for(let i = 0; i < difference; i++){
                 const speedXDirection = Math.random() < 0.5 ? 1 : -1;
@@ -83,11 +123,28 @@ class World {
                 const bliblieRadius = Math.sqrt(bliblieWidth ** 2 + bliblieHeight ** 2) / 2; // rectangle diag formula
                 const newPosition = this.#getRandomFreeSpot(bliblieRadius);
 
-                const newBliBlie = new BliBlie(newPosition, newVelocity, bliblieRadius, 0, "bliblie");
+                const newBliBlie = new BliBlie(newPosition, newVelocity, bliblieRadius, 0);
                 this.spawn(newBliBlie);
             }
         }
         
+        if (localPickupItemsCount < pickupItemsCount) {
+            const difference = pickupItemsCount - localPickupItemsCount;
+
+            for(let i = 0; i < difference; i++){
+                const itemType = this.#pickupItems[Math.floor(Math.random() * this.#pickupItems.length)]
+
+                if(itemType == "shield"){
+                    const shieldRadius = Math.sqrt(shieldWidth ** 2 + shieldHeight ** 2) / 2; // rectangle diag formula
+                    const newPosition = this.#getRandomFreeSpot(shieldRadius);
+
+                    const newShield = new Pickup(newPosition, shieldRadius, itemType);
+                    this.spawn(newShield);
+                    console.log("Pickup spawned:", newShield);
+                }
+            }
+        }
+
         for (const entity of this.ofKind("mainShip")) {
             if (entity.fireRequested) 
             {
@@ -99,13 +156,21 @@ class World {
                 const shipNose = entity.pos.add(direction.scale(spawnDistance)); // receive new Vector2
                 const rocketVelocity = direction.scale(miniRocketSpeed);
 
-                const miniRocket = new MiniRocket(shipNose, rocketVelocity, rocketRadius, entity.angle, "miniRocket", entity);
+                const miniRocket = new MiniRocket(shipNose, rocketVelocity, rocketRadius, entity.angle, entity);
+                miniRocket.behaviors.push(applyHoming);
                 this.spawn(miniRocket);
             }
         }
 
         for (const entity of this) {
-            entity.update(dt);
+            const context = {}; // sup data for obj behavior
+
+            if (entity.kind === "miniRocket") {
+                context.target = this.findNearestTarget(entity, "bliblie");
+                context.worldEntities = this;
+            }
+
+            entity.update(dt, context);
 
             if(entity.kind == "bliblie"){
                 bounce(entity, this.width, this.height);
@@ -155,11 +220,24 @@ class World {
                 const ship = a.kind =="mainShip" ? a : b;
                 const rocket = a.kind == "miniRocket" ? a : b;
 
-                if (ship.hit(damageFromMiniRocket)) {
+                if (rocket.owner != ship && ship.hit(damageFromMiniRocket)) {
                     this.spawn(new Explosion(ship.pos));
                 }
 
                 rocket.alive = false;
+            }
+
+            if ((a.kind == "mainShip" && b.kind == "pickup") ||
+                (a.kind == "pickup" && b.kind == "mainShip"))
+            {
+                const ship = a.kind == "mainShip" ? a : b;
+                const pickup = a.kind == "pickup" ? a : b;
+
+                if (pickup.effect == "shield") {
+                    ship.hasShield = true;
+                }
+
+                pickup.alive = false;
             }
         }
 

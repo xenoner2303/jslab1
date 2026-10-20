@@ -29,9 +29,16 @@ class Entity{
         this.alive = alive;
         this.kind = kind;
         this.angle = angle;
+        this.behaviors = [];
     }
 
-    update(dt){}
+    update(dt, context) {
+        if (!this.alive) return;
+
+        for (const behavior of this.behaviors) {
+            behavior(this, dt, context);
+        }
+    }
 }
 
 export { Entity };

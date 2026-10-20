@@ -1,10 +1,11 @@
 import { createInput } from './input.js';
+import { getAngleDelta } from "./supFunctions.js";
 import { createLoop } from './loop.js';
 import { Ship } from './sim/ship.js';
 import { World } from './sim/world.js';
 import { Vector2 } from './sim/vector.js';
 import { wrap } from './sim/arena.js';
-import { drawShip, drawGrid, drawBliBlie, drawMiniRocket, drawExplosion } from './render/draw.js';
+import { drawShip, drawGrid, drawBliBlie, drawMiniRocket, drawExplosion, drawShield, drawBarrierShield } from './render/draw.js';
 import { configureCanvas } from './render/canvas.js';
 import { step, bulletWidth, bulletHeight } from '../config/settings.js';
 
@@ -14,7 +15,7 @@ const world = new World(window.innerWidth, window.innerHeight);
 const startMainShipPos = new Vector2(window.innerWidth / 2, window.innerHeight / 2);
 const mainShipRadius = Math.sqrt(bulletWidth ** 2 + bulletHeight ** 2) / 2; // rectangle diag formula
 
-let mainShip = new Ship(startMainShipPos, new Vector2(0, 0), mainShipRadius, 0, "mainShip", input)
+let mainShip = new Ship(startMainShipPos, new Vector2(0, 0), mainShipRadius, 0, input)
 world.spawn(mainShip);
 
 let previous = {
@@ -58,6 +59,14 @@ function render(alpha, stats) {
     drawExplosion(ctx, entity);
   }
 
+  console.log("Pickups:", [...world.ofKind("pickup")]);
+
+  for (const entity of world.ofKind("pickup")) {
+    if (entity.effect == "shield") {
+      drawShield(ctx, entity);
+    }
+  }
+
   const angleChange = getAngleDelta(previous.angle, mainShip.angle);
 
   const interpolatedShip = {
@@ -71,6 +80,9 @@ function render(alpha, stats) {
 
   drawGrid(ctx, window.innerWidth, window.innerHeight);
   if(mainShip.alive) drawShip(ctx, interpolatedShip);
+  if(mainShip.alive && mainShip.hasShield){
+    drawBarrierShield(ctx, mainShip);
+  }
 }
 
 const loop = createLoop({
@@ -80,17 +92,3 @@ const loop = createLoop({
 });
 
 loop.start();
-
-function getAngleDelta(previous, current) {
-  let delta = current - previous;
-
-  if (delta > Math.PI) {
-    delta -= 2 * Math.PI;
-  }
-
-  if (delta < -Math.PI) {
-    delta += 2 * Math.PI;
-  }
-
-  return delta;
-}
