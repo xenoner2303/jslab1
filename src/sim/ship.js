@@ -16,8 +16,8 @@ class Ship extends Entity {
   #hp = 0;
   #respawnTimer = 0;
 
-  constructor(pos, vel, radius, angle, kind, input){
-    super(pos, vel, radius, true, angle, kind);
+  constructor(pos, vel, radius, angle, input){
+    super(pos, vel, radius, true, angle, "mainShip");
 
     this.thrust = 0;
     this.input = input;

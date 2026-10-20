@@ -15,7 +15,7 @@ const world = new World(window.innerWidth, window.innerHeight);
 const startMainShipPos = new Vector2(window.innerWidth / 2, window.innerHeight / 2);
 const mainShipRadius = Math.sqrt(bulletWidth ** 2 + bulletHeight ** 2) / 2; // rectangle diag formula
 
-let mainShip = new Ship(startMainShipPos, new Vector2(0, 0), mainShipRadius, 0, "mainShip", input)
+let mainShip = new Ship(startMainShipPos, new Vector2(0, 0), mainShipRadius, 0, input)
 world.spawn(mainShip);
 
 let previous = {

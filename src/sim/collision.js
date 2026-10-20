@@ -1,5 +1,3 @@
-import {Vector2} from "./vector.js"
-
 function circleCheck(a, b) { // a nd b - entities
     const vectorBetween = a.pos.sub(b.pos);
 

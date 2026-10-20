@@ -5,8 +5,8 @@ import { rocketTtl, miniRocketSpeed } from '../../config/settings.js';
 class MiniRocket extends Entity {
   #ttl = rocketTtl;
 
-  constructor(pos, vel, radius, angle, kind, owner){
-    super(pos, vel, radius, true, angle, kind);
+  constructor(pos, vel, radius, angle, owner){
+    super(pos, vel, radius, true, angle, "miniRocket");
 
     this.owner = owner;
   }

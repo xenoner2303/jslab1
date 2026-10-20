@@ -103,7 +103,7 @@ class World {
                 const bliblieRadius = Math.sqrt(bliblieWidth ** 2 + bliblieHeight ** 2) / 2; // rectangle diag formula
                 const newPosition = this.#getRandomFreeSpot(bliblieRadius);
 
-                const newBliBlie = new BliBlie(newPosition, newVelocity, bliblieRadius, 0, "bliblie");
+                const newBliBlie = new BliBlie(newPosition, newVelocity, bliblieRadius, 0);
                 this.spawn(newBliBlie);
             }
         }
@@ -119,7 +119,7 @@ class World {
                 const shipNose = entity.pos.add(direction.scale(spawnDistance)); // receive new Vector2
                 const rocketVelocity = direction.scale(miniRocketSpeed);
 
-                const miniRocket = new MiniRocket(shipNose, rocketVelocity, rocketRadius, entity.angle, "miniRocket", entity);
+                const miniRocket = new MiniRocket(shipNose, rocketVelocity, rocketRadius, entity.angle, entity);
                 miniRocket.behaviors.push(applyHoming);
                 this.spawn(miniRocket);
             }
