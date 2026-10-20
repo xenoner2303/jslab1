@@ -5,7 +5,7 @@ import { Ship } from './sim/ship.js';
 import { World } from './sim/world.js';
 import { Vector2 } from './sim/vector.js';
 import { wrap } from './sim/arena.js';
-import { drawShip, drawGrid, drawBliBlie, drawMiniRocket, drawExplosion } from './render/draw.js';
+import { drawShip, drawGrid, drawBliBlie, drawMiniRocket, drawExplosion, drawShield, drawBarrierShield } from './render/draw.js';
 import { configureCanvas } from './render/canvas.js';
 import { step, bulletWidth, bulletHeight } from '../config/settings.js';
 
@@ -59,6 +59,14 @@ function render(alpha, stats) {
     drawExplosion(ctx, entity);
   }
 
+  console.log("Pickups:", [...world.ofKind("pickup")]);
+
+  for (const entity of world.ofKind("pickup")) {
+    if (entity.effect == "shield") {
+      drawShield(ctx, entity);
+    }
+  }
+
   const angleChange = getAngleDelta(previous.angle, mainShip.angle);
 
   const interpolatedShip = {
@@ -72,6 +80,9 @@ function render(alpha, stats) {
 
   drawGrid(ctx, window.innerWidth, window.innerHeight);
   if(mainShip.alive) drawShip(ctx, interpolatedShip);
+  if(mainShip.alive && mainShip.hasShield){
+    drawBarrierShield(ctx, mainShip);
+  }
 }
 
 const loop = createLoop({

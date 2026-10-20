@@ -24,6 +24,7 @@ class Ship extends Entity {
     this.fireRequested = false;
     this.#hp = maxShipHp;
     this.score = 0;
+    this.hasShield = false;
   }
 
   get hp(){
@@ -31,6 +32,11 @@ class Ship extends Entity {
   }
 
   hit(amount) {
+    if(this.hasShield){
+      this.hasShield = false;
+      return false;
+    }
+
     this.#hp -= amount;
 
     if (this.#hp <= 0) {

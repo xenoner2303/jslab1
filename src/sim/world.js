@@ -2,14 +2,29 @@ import { BliBlie } from "./bliblie.js";
 import { Entity } from "./entity.js"
 import { Vector2 } from "./vector.js";
 import { applyHoming } from "./homing.js";
-import {blibliesCount, maxBliblieSpeed, bliblieHeight, bliblieWidth, miniRocketSpeed, damageFromObjects, damageFromMiniRocket, miniRocketHeight, miniRocketWidth} from "../../config/settings.js"
 import { bounce } from "./arena.js";
 import { MiniRocket } from "./miniRocket.js";
 import {entitiesCollision, checkSpot} from "./collision.js";
 import { Explosion } from "./explosion.js";
+import {
+    pickupItemsCount, 
+    blibliesCount, 
+    maxBliblieSpeed, 
+    bliblieHeight, 
+    bliblieWidth, 
+    miniRocketSpeed, 
+    damageFromObjects, 
+    damageFromMiniRocket, 
+    miniRocketHeight, 
+    miniRocketWidth,
+    shieldWidth,
+    shieldHeight
+} from "../../config/settings.js"
+import { Pickup } from "./pickup.js";
 
 class World {
     #entities = new Map(); // entities storage/ key - id
+    #pickupItems = ["shield"]
 
     constructor(width, height) {
         if(!Number.isFinite(width) || !Number.isFinite(height)){
@@ -83,14 +98,19 @@ class World {
     }
 
     step(dt, inputs) {
-        let count = 0;
+        let localBlibliesCount = 0;
+        let localPickupItemsCount = 0;
 
         for (const entity of this.ofKind("bliblie")) {
-            count++;
+            localBlibliesCount++;
         }
 
-        if (count < blibliesCount) { // if bliblie < 5 we spawn new
-            const difference = blibliesCount - count;
+        for (const entity of this.ofKind("pickup")) {
+            localPickupItemsCount++;
+        }
+
+        if (localBlibliesCount < blibliesCount) { // if bliblie < 5 we spawn new
+            const difference = blibliesCount - localBlibliesCount;
 
             for(let i = 0; i < difference; i++){
                 const speedXDirection = Math.random() < 0.5 ? 1 : -1;
@@ -108,6 +128,23 @@ class World {
             }
         }
         
+        if (localPickupItemsCount < pickupItemsCount) {
+            const difference = pickupItemsCount - localPickupItemsCount;
+
+            for(let i = 0; i < difference; i++){
+                const itemType = this.#pickupItems[Math.floor(Math.random() * this.#pickupItems.length)]
+
+                if(itemType == "shield"){
+                    const shieldRadius = Math.sqrt(shieldWidth ** 2 + shieldHeight ** 2) / 2; // rectangle diag formula
+                    const newPosition = this.#getRandomFreeSpot(shieldRadius);
+
+                    const newShield = new Pickup(newPosition, shieldRadius, itemType);
+                    this.spawn(newShield);
+                    console.log("Pickup spawned:", newShield);
+                }
+            }
+        }
+
         for (const entity of this.ofKind("mainShip")) {
             if (entity.fireRequested) 
             {
@@ -183,11 +220,24 @@ class World {
                 const ship = a.kind =="mainShip" ? a : b;
                 const rocket = a.kind == "miniRocket" ? a : b;
 
-                if (ship.hit(damageFromMiniRocket)) {
+                if (rocket.owner != ship && ship.hit(damageFromMiniRocket)) {
                     this.spawn(new Explosion(ship.pos));
                 }
 
                 rocket.alive = false;
+            }
+
+            if ((a.kind == "mainShip" && b.kind == "pickup") ||
+                (a.kind == "pickup" && b.kind == "mainShip"))
+            {
+                const ship = a.kind == "mainShip" ? a : b;
+                const pickup = a.kind == "pickup" ? a : b;
+
+                if (pickup.effect == "shield") {
+                    ship.hasShield = true;
+                }
+
+                pickup.alive = false;
             }
         }
 
