@@ -27,7 +27,7 @@ import {
   shieldStrokeColor,
   barrierShieldLineWidth,
   shieldWidth,
-  shieldHeight
+  shieldHeight,
 } from '../../config/settings.js';
 
 function drawShip(ctx, ship) {
@@ -136,7 +136,7 @@ function drawBliBlie(ctx, bliblie) {
   ctx.translate(bliblie.pos.x, bliblie.pos.y);
   ctx.fillStyle = bliblieFillStyle;
   ctx.strokeStyle = bliblieStrokeStyle;
-  
+
   // head
   ctx.beginPath();
   ctx.arc(0, -20, 10, 0, Math.PI * 2); // x, y, radius, startAngle, endAngle
@@ -190,12 +190,7 @@ function drawMiniRocket(ctx, rocket) {
 
   // flame
   ctx.fillStyle = miniRocketFlameFillStyle;
-  ctx.fillRect(
-    -miniRocketHeight / 2,
-    -miniRocketWidth / 2,
-    5,
-    miniRocketWidth
-  );
+  ctx.fillRect(-miniRocketHeight / 2, -miniRocketWidth / 2, 5, miniRocketWidth);
 
   ctx.restore();
 }
@@ -211,13 +206,7 @@ function drawExplosion(ctx, explosion) {
 
     ctx.beginPath();
 
-    ctx.arc(
-      particle.pos.x,
-      particle.pos.y,
-      particle.radius,
-      0,
-      Math.PI * 2
-    );
+    ctx.arc(particle.pos.x, particle.pos.y, particle.radius, 0, Math.PI * 2);
 
     ctx.fill();
   }
@@ -246,7 +235,7 @@ function drawShield(ctx, shield) {
   ctx.restore();
 }
 
-function drawBarrierShield(ctx, entity){
+function drawBarrierShield(ctx, entity) {
   ctx.save();
 
   ctx.translate(entity.pos.x, entity.pos.y);
@@ -254,10 +243,18 @@ function drawBarrierShield(ctx, entity){
   ctx.lineWidth = barrierShieldLineWidth;
 
   ctx.beginPath();
-  ctx.arc(0, 0, entity.radius + barrierShieldAdditionalRadius, 0, Math.PI * 2);  // x, y, radius, startAngle, endAngle
-  
-  ctx.stroke()
+  ctx.arc(0, 0, entity.radius + barrierShieldAdditionalRadius, 0, Math.PI * 2); // x, y, radius, startAngle, endAngle
+
+  ctx.stroke();
   ctx.restore();
 }
 
-export { drawShip, drawGrid, drawBliBlie, drawMiniRocket, drawExplosion, drawShield, drawBarrierShield };
+export {
+  drawShip,
+  drawGrid,
+  drawBliBlie,
+  drawMiniRocket,
+  drawExplosion,
+  drawShield,
+  drawBarrierShield,
+};

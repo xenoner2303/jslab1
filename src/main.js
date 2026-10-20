@@ -1,21 +1,38 @@
 import { createInput } from './input.js';
-import { getAngleDelta } from "./supFunctions.js";
+import { getAngleDelta } from './supFunctions.js';
 import { createLoop } from './loop.js';
 import { Ship } from './sim/ship.js';
 import { World } from './sim/world.js';
 import { Vector2 } from './sim/vector.js';
 import { wrap } from './sim/arena.js';
-import { drawShip, drawGrid, drawBliBlie, drawMiniRocket, drawExplosion, drawShield, drawBarrierShield } from './render/draw.js';
+import {
+  drawShip,
+  drawGrid,
+  drawBliBlie,
+  drawMiniRocket,
+  drawExplosion,
+  drawShield,
+  drawBarrierShield,
+} from './render/draw.js';
 import { configureCanvas } from './render/canvas.js';
 import { step, bulletWidth, bulletHeight } from '../config/settings.js';
 
 const canvasConfig = configureCanvas(window);
 const input = createInput(window);
 const world = new World(window.innerWidth, window.innerHeight);
-const startMainShipPos = new Vector2(window.innerWidth / 2, window.innerHeight / 2);
+const startMainShipPos = new Vector2(
+  window.innerWidth / 2,
+  window.innerHeight / 2
+);
 const mainShipRadius = Math.sqrt(bulletWidth ** 2 + bulletHeight ** 2) / 2; // rectangle diag formula
 
-let mainShip = new Ship(startMainShipPos, new Vector2(0, 0), mainShipRadius, 0, input)
+let mainShip = new Ship(
+  startMainShipPos,
+  new Vector2(0, 0),
+  mainShipRadius,
+  0,
+  input
+);
 world.spawn(mainShip);
 
 let previous = {
@@ -29,7 +46,7 @@ function simulate(dt) {
     pos: new Vector2(mainShip.pos.x, mainShip.pos.y),
     angle: mainShip.angle,
     thrust: mainShip.thrust,
-  }; 
+  };
 
   world.step(dt, input);
   wrap(mainShip, window.innerWidth, window.innerHeight);
@@ -42,27 +59,28 @@ function render(alpha, stats) {
   const hud = document.getElementById('hud');
   hud.querySelector('#steps').textContent = `Steps: ${stats.sps}`;
   hud.querySelector('#fps').textContent = `FPS: ${stats.fps.toFixed(2)}`;
-  hud.querySelector('#frameTime').textContent = `Frame Time: ${stats.frameTime.toFixed(2)} ms`;
+  hud.querySelector('#frameTime').textContent =
+    `Frame Time: ${stats.frameTime.toFixed(2)} ms`;
   hud.querySelector('#score').textContent = `Score: ${mainShip.score} bliblies`;
 
   ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
 
-  for (const entity of world.ofKind("miniRocket")) {
+  for (const entity of world.ofKind('miniRocket')) {
     drawMiniRocket(ctx, entity);
   }
 
-  for (const entity of world.ofKind("bliblie")) {
+  for (const entity of world.ofKind('bliblie')) {
     drawBliBlie(ctx, entity);
   }
 
-  for (const entity of world.ofKind("explosion")) {
+  for (const entity of world.ofKind('explosion')) {
     drawExplosion(ctx, entity);
   }
 
-  console.log("Pickups:", [...world.ofKind("pickup")]);
+  console.log('Pickups:', [...world.ofKind('pickup')]);
 
-  for (const entity of world.ofKind("pickup")) {
-    if (entity.effect == "shield") {
+  for (const entity of world.ofKind('pickup')) {
+    if (entity.effect == 'shield') {
       drawShield(ctx, entity);
     }
   }
@@ -79,8 +97,8 @@ function render(alpha, stats) {
   };
 
   drawGrid(ctx, window.innerWidth, window.innerHeight);
-  if(mainShip.alive) drawShip(ctx, interpolatedShip);
-  if(mainShip.alive && mainShip.hasShield){
+  if (mainShip.alive) drawShip(ctx, interpolatedShip);
+  if (mainShip.alive && mainShip.hasShield) {
     drawBarrierShield(ctx, mainShip);
   }
 }
