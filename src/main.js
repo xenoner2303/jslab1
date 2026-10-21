@@ -6,6 +6,7 @@ import { World } from './sim/world.js';
 import { Vector2 } from './sim/vector.js';
 import { wrap } from './sim/arena.js';
 import { loadAll } from '../assets/loader.js';
+import {initAudio} from './sim/audio.js'
 import {
   drawShip,
   drawGrid,
@@ -17,6 +18,8 @@ import {
 } from './render/draw.js';
 import { configureCanvas } from './render/canvas.js';
 import { step, bulletWidth, bulletHeight } from '../config/settings.js';
+
+const world = new World(window.innerWidth, window.innerHeight);
 
 initGame();
 
@@ -38,7 +41,7 @@ async function initGame() {
       resolve();
     }, { once: true }); // for only one click
   });
-
+  
   const controller = new AbortController();
 
   try 
@@ -56,8 +59,16 @@ async function initGame() {
       signal: controller.signal
     });
 
-    loadingScreen.style.display = 'none';
+    const audio = initAudio(audioCtx, assets);
+  
+    world.addEventListener('shoot', () => audio.playShoot());
+    world.addEventListener('exploded', () => audio.playExplosion());
+    world.addEventListener('hit', (event) => audio.playHit(event.detail.type));
+    world.addEventListener('environment', (event) => audio.playEnvironmentSound(event.detail.type));
+    world.addEventListener('kill', (event) => audio.playKillJoke(event.detail.count, event.detail.type));
 
+    loadingScreen.style.display = 'none';
+    
     startGame(assets, canvasConfig);
   } 
   catch (error) 
@@ -69,7 +80,7 @@ async function initGame() {
 
 function startGame(assets, canvasConfig) {
   const input = createInput(window);
-  const world = new World(window.innerWidth, window.innerHeight);
+
   const startMainShipPos = new Vector2(
     window.innerWidth / 2,
     window.innerHeight / 2
@@ -126,8 +137,6 @@ function startGame(assets, canvasConfig) {
     for (const entity of world.ofKind('explosion')) {
       drawExplosion(ctx, entity);
     }
-
-    console.log('Pickups:', [...world.ofKind('pickup')]);
 
     for (const entity of world.ofKind('pickup')) {
       if (entity.effect == 'shield') {

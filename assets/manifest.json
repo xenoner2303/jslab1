@@ -7,13 +7,14 @@
   "sounds": [
     { "id": "shootRocket", "url": "/assets/sounds/shootRocket.wav" },
     { "id": "explosion", "url": "/assets/sounds/explosion.wav" },
-    { "id": "bliblieSound", "url": "/assets/sounds/bliblieSounds.wav" },
+    { "id": "bliblieSounds1", "url": "/assets/sounds/bliblieSounds1.wav" },
+    { "id": "bliblieSounds2", "url": "/assets/sounds/bliblieSounds2.wav" },
     { "id": "doubleKill", "url": "/assets/sounds/doubleKill.wav" },
     { "id": "tripleKill", "url": "/assets/sounds/tripleKill.wav" },
     { "id": "quadraKill", "url": "/assets/sounds/quadraKill.wav" },
     { "id": "pentaKill", "url": "/assets/sounds/pentaKill.wav" },
     { "id": "legendaryKill", "url": "/assets/sounds/legendaryKill.wav" },
-    { "id": "legendaryKill", "url": "/assets/sounds/legendaryKill.wav" }
+    { "id": "bliblieDie", "url": "/assets/sounds/bliblieDie.wav" }
   ],
   "arena": "/assets/arena/arena.json"
 }
