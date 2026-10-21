@@ -26,10 +26,16 @@ import {
 function drawShip(ctx, ship, shipImg) {
   ctx.save();
   ctx.translate(ship.x, ship.y);
+
+  ctx.font = '14px sans-serif';
+  ctx.fillStyle = 'black';
+  ctx.textAlign = 'center';
+  ctx.fillText(ship.playerName, 0, -shipHeight / 2 - 10);
+
   ctx.rotate(ship.angle);
 
   if (shipImg) {
-    ctx.drawImage(shipImg, -shipHeight/2, -shipWidth/2, shipHeight, shipWidth);
+    ctx.drawImage(shipImg, -shipHeight / 2, -shipWidth / 2, shipHeight, shipWidth);
   }
 
   if (ship.thrust !== 0) {

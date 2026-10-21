@@ -19,7 +19,6 @@ class Lobby extends EventTarget {
     }
 
     this.#abortController = new AbortController();
-    this.dispatchEvent(new CustomEvent('loadingchange', { detail: { isLoading: true } }));
 
     try {
       const signal = AbortSignal.any([
@@ -86,10 +85,15 @@ class Lobby extends EventTarget {
       throw new Error('The selected room was not found');
     }
 
+    if(selectedRoom.currentPlayers == selectedRoom.maxPlayers){
+        throw new Error('The room is full');
+    }
+
     if (!playerName || playerName.trim() === '') {
       throw new Error('Please enter player name');
     }
 
+    selectedRoom.currentPlayers++; // just in memory
     this.stopAutoRefresh(); // stop http before exit
 
     this.dispatchEvent(new CustomEvent('joined', {
