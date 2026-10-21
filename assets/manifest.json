@@ -12,6 +12,7 @@
     { "id": "tripleKill", "url": "/assets/sounds/tripleKill.wav" },
     { "id": "quadraKill", "url": "/assets/sounds/quadraKill.wav" },
     { "id": "pentaKill", "url": "/assets/sounds/pentaKill.wav" },
+    { "id": "legendaryKill", "url": "/assets/sounds/legendaryKill.wav" },
     { "id": "legendaryKill", "url": "/assets/sounds/legendaryKill.wav" }
   ],
   "arena": "/assets/arena/arena.json"

@@ -5,6 +5,7 @@ import { Ship } from './sim/ship.js';
 import { World } from './sim/world.js';
 import { Vector2 } from './sim/vector.js';
 import { wrap } from './sim/arena.js';
+import { loadAll } from '../assets/loader.js';
 import {
   drawShip,
   drawGrid,
@@ -17,96 +18,146 @@ import {
 import { configureCanvas } from './render/canvas.js';
 import { step, bulletWidth, bulletHeight } from '../config/settings.js';
 
-const canvasConfig = configureCanvas(window);
-const input = createInput(window);
-const world = new World(window.innerWidth, window.innerHeight);
-const startMainShipPos = new Vector2(
-  window.innerWidth / 2,
-  window.innerHeight / 2
-);
-const mainShipRadius = Math.sqrt(bulletWidth ** 2 + bulletHeight ** 2) / 2; // rectangle diag formula
+initGame();
 
-let mainShip = new Ship(
-  startMainShipPos,
-  new Vector2(0, 0),
-  mainShipRadius,
-  0,
-  input
-);
-world.spawn(mainShip);
+async function initGame() {
+  const canvasConfig = configureCanvas(window);
+  
+  const loadingScreen = document.getElementById('loading-screen');
+  const loadingText = document.getElementById('loading-text');
+  const progressBar = document.getElementById('progress-bar');
+  const startBtn = document.getElementById('start-btn');
 
-let previous = {
-  pos: new Vector2(mainShip.pos.x, mainShip.pos.y),
-  angle: mainShip.angle,
-  thrust: mainShip.thrust,
-}; // previous ship state, remove shallow copy cause equal vector2 reference
+  let audioCtx = null; // for browser audio
+  
+  await new Promise((resolve) => {
+    startBtn.addEventListener('click', () => {
+      audioCtx = new window.AudioContext();
+      startBtn.style.display = 'none';
+      loadingText.textContent = '0%';
+      resolve();
+    }, { once: true }); // for only one click
+  });
 
-function simulate(dt) {
-  previous = {
+  const controller = new AbortController();
+
+  try 
+  {
+    const manifestRes = await fetch('./assets/manifest.json');
+    const manifest = await manifestRes.json();
+
+    const assets = await loadAll(manifest, {
+      audioCtx,
+      onProgress: (progress) => {
+        const percent = Math.round(progress * 100);
+        loadingText.textContent = `${percent}%`;
+        progressBar.style.width = `${percent}%`; // expand width of progress bar
+      },
+      signal: controller.signal
+    });
+
+    loadingScreen.style.display = 'none';
+
+    startGame(assets, canvasConfig);
+  } 
+  catch (error) 
+  {
+    console.error('Помилка під час ініціалізації гри:', error);
+    loadingText.textContent = 'Не пограєш ти сьогодні, сорі';
+  }
+}
+
+function startGame(assets, canvasConfig) {
+  const input = createInput(window);
+  const world = new World(window.innerWidth, window.innerHeight);
+  const startMainShipPos = new Vector2(
+    window.innerWidth / 2,
+    window.innerHeight / 2
+  );
+  const mainShipRadius = Math.sqrt(bulletWidth ** 2 + bulletHeight ** 2) / 2; // rectangle diag formula
+
+  let mainShip = new Ship(
+    startMainShipPos,
+    new Vector2(0, 0),
+    mainShipRadius,
+    0,
+    input
+  );
+  world.spawn(mainShip);
+
+  let previous = {
     pos: new Vector2(mainShip.pos.x, mainShip.pos.y),
     angle: mainShip.angle,
     thrust: mainShip.thrust,
-  };
+  }; // previous ship state, remove shallow copy cause equal vector2 reference
 
-  world.step(dt, input);
-  wrap(mainShip, window.innerWidth, window.innerHeight);
+  function simulate(dt) {
+    previous = {
+      pos: new Vector2(mainShip.pos.x, mainShip.pos.y),
+      angle: mainShip.angle,
+      thrust: mainShip.thrust,
+    };
 
-  input.clearJustPressed();
-}
+    world.step(dt, input);
+    wrap(mainShip, window.innerWidth, window.innerHeight);
 
-function render(alpha, stats) {
-  const ctx = canvasConfig.ctx;
-  const hud = document.getElementById('hud');
-  hud.querySelector('#steps').textContent = `Steps: ${stats.sps}`;
-  hud.querySelector('#fps').textContent = `FPS: ${stats.fps.toFixed(2)}`;
-  hud.querySelector('#frameTime').textContent =
-    `Frame Time: ${stats.frameTime.toFixed(2)} ms`;
-  hud.querySelector('#score').textContent = `Score: ${mainShip.score} bliblies`;
-
-  ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
-
-  for (const entity of world.ofKind('miniRocket')) {
-    drawMiniRocket(ctx, entity);
+    input.clearJustPressed();
   }
 
-  for (const entity of world.ofKind('bliblie')) {
-    drawBliBlie(ctx, entity);
-  }
+  function render(alpha, stats) {
+    const ctx = canvasConfig.ctx;
+    const hud = document.getElementById('hud');
+    hud.querySelector('#steps').textContent = `Steps: ${stats.sps}`;
+    hud.querySelector('#fps').textContent = `FPS: ${stats.fps.toFixed(2)}`;
+    hud.querySelector('#frameTime').textContent =
+      `Frame Time: ${stats.frameTime.toFixed(2)} ms`;
+    hud.querySelector('#score').textContent = `Score: ${mainShip.score} bliblies`;
 
-  for (const entity of world.ofKind('explosion')) {
-    drawExplosion(ctx, entity);
-  }
+    ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
 
-  console.log('Pickups:', [...world.ofKind('pickup')]);
+    for (const entity of world.ofKind('miniRocket')) {
+      drawMiniRocket(ctx, entity);
+    }
 
-  for (const entity of world.ofKind('pickup')) {
-    if (entity.effect == 'shield') {
-      drawShield(ctx, entity);
+    for (const entity of world.ofKind('bliblie')) {
+      drawBliBlie(ctx, entity);
+    }
+
+    for (const entity of world.ofKind('explosion')) {
+      drawExplosion(ctx, entity);
+    }
+
+    console.log('Pickups:', [...world.ofKind('pickup')]);
+
+    for (const entity of world.ofKind('pickup')) {
+      if (entity.effect == 'shield') {
+        drawShield(ctx, entity);
+      }
+    }
+
+    const angleChange = getAngleDelta(previous.angle, mainShip.angle);
+
+    const interpolatedShip = {
+      // interpolation between ship states
+      x: previous.pos.x + (mainShip.pos.x - previous.pos.x) * alpha,
+      y: previous.pos.y + (mainShip.pos.y - previous.pos.y) * alpha,
+      angle: previous.angle + angleChange * alpha,
+      thrust: previous.thrust + (mainShip.thrust - previous.thrust) * alpha,
+      angleChange,
+    };
+
+    drawGrid(ctx, window.innerWidth, window.innerHeight);
+    if (mainShip.alive) drawShip(ctx, interpolatedShip);
+    if (mainShip.alive && mainShip.hasShield) {
+      drawBarrierShield(ctx, mainShip);
     }
   }
 
-  const angleChange = getAngleDelta(previous.angle, mainShip.angle);
+  const loop = createLoop({
+    step,
+    simulate,
+    render,
+  });
 
-  const interpolatedShip = {
-    // interpolation between ship states
-    x: previous.pos.x + (mainShip.pos.x - previous.pos.x) * alpha,
-    y: previous.pos.y + (mainShip.pos.y - previous.pos.y) * alpha,
-    angle: previous.angle + angleChange * alpha,
-    thrust: previous.thrust + (mainShip.thrust - previous.thrust) * alpha,
-    angleChange,
-  };
-
-  drawGrid(ctx, window.innerWidth, window.innerHeight);
-  if (mainShip.alive) drawShip(ctx, interpolatedShip);
-  if (mainShip.alive && mainShip.hasShield) {
-    drawBarrierShield(ctx, mainShip);
-  }
+  loop.start();
 }
-
-const loop = createLoop({
-  step,
-  simulate,
-  render,
-});
-
-loop.start();

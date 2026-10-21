@@ -31,13 +31,14 @@ async function withRetry(fn, { attempts = 3, baseMs = 300, signal } = {}) { // s
         signal?.addEventListener('abort', () => {
           clearTimeout(timer); // if player left - clear timer
           resolve();
-        }, { once: true }); // use listener one time and then delete
+        }, 
+        { once: true }); // use listener one time and then delete
       });
     }
   }
 }
 
-function loadImage(url, signal) {
+async function loadImage(url, signal) {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) {
       return reject(new DOMException('Aborted', 'AbortError'));
@@ -94,7 +95,7 @@ async function loadAll(manifest, { audioCtx, onProgress, signal } = {}) {
     loadedCount++;
 
     if (onProgress) {
-      onProgress(loadedCount / totalTasks);
+      onProgress(loadedCount/totalTasks); // for progress bar
     }
   };
 
