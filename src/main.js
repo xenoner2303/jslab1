@@ -17,7 +17,7 @@ import {
   drawBarrierShield,
 } from './render/draw.js';
 import { configureCanvas } from './render/canvas.js';
-import { step, bulletWidth, bulletHeight } from '../config/settings.js';
+import { step, shipWidth, shipHeight } from '../config/settings.js';
 
 const world = new World(window.innerWidth, window.innerHeight);
 
@@ -85,7 +85,7 @@ function startGame(assets, canvasConfig) {
     window.innerWidth / 2,
     window.innerHeight / 2
   );
-  const mainShipRadius = Math.sqrt(bulletWidth ** 2 + bulletHeight ** 2) / 2; // rectangle diag formula
+  const mainShipRadius = Math.sqrt(shipWidth ** 2 + shipHeight ** 2) / 2; // rectangle diag formula
 
   let mainShip = new Ship(
     startMainShipPos,
@@ -131,16 +131,16 @@ function startGame(assets, canvasConfig) {
     }
 
     for (const entity of world.ofKind('bliblie')) {
-      drawBliBlie(ctx, entity);
+      drawBliBlie(ctx, entity, assets.bliblie);
     }
 
     for (const entity of world.ofKind('explosion')) {
-      drawExplosion(ctx, entity);
+      drawExplosion(ctx, entity, assets.ship);
     }
 
     for (const entity of world.ofKind('pickup')) {
       if (entity.effect == 'shield') {
-        drawShield(ctx, entity);
+        drawShield(ctx, entity, assets.shield);
       }
     }
 
@@ -156,7 +156,7 @@ function startGame(assets, canvasConfig) {
     };
 
     drawGrid(ctx, window.innerWidth, window.innerHeight);
-    if (mainShip.alive) drawShip(ctx, interpolatedShip);
+    if (mainShip.alive) drawShip(ctx, interpolatedShip, assets.ship);
     if (mainShip.alive && mainShip.hasShield) {
       drawBarrierShield(ctx, mainShip);
     }

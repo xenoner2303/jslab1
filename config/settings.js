@@ -11,17 +11,14 @@ export const damageFromMiniRocket = 2;
 export const shipRespawnTime = 2; // in sec
 
 // ship drawing params
-export const bulletWidth = 25;
-export const bulletHeight = 40;
-export const bulletFillStyle = '#e0a96d';
-export const bulletStrokeStyle = 'black';
-export const bulletLineWidth = 2;
-export const bulletFrontThurstColor = 'red';
-export const bulletBackThurstColor = 'blue';
-export const bulletThurstMultiplier = 1.2;
-export const bulletThurstLineWidth = 2;
-export const bulletThurstLineCount = 3;
-export const bulletAnglePower = 3;
+export const shipWidth = 50;
+export const shipHeight = 80;
+export const shipFrontThurstColor = 'red';
+export const shipBackThurstColor = 'blue';
+export const shipThurstMultiplier = 1.2;
+export const shipThurstLineWidth = 2;
+export const shipThurstLineCount = 3;
+export const shipAnglePower = 3;
 export const gridColor = 'gray';
 export const explosionTtl = 1;
 export const explosionParticleCount = 16;
@@ -46,10 +43,7 @@ export const miniRocketFlameFillStyle = 'red';
 export const blibliesCount = 5;
 export const maxBliblieSpeed = 50; // in seconds
 export const bliblieHeight = 80;
-export const bliblieWidth = 10;
-export const bliblieFillStyle = 'purple';
-export const bliblieEyeFillStyle = 'white';
-export const bliblieStrokeStyle = 'black';
+export const bliblieWidth = 60;
 export const bliblieScreamTimer = 5;
 
 // homing
@@ -59,9 +53,6 @@ export const homingDirectionChangeMultiplier = 0.1;
 export const barrierShieldAdditionalRadius = 4;
 export const barrierShieldStrokeStyle = 'blue';
 export const barrierShieldLineWidth = 4;
-export const shieldFillColor = 'blue';
-export const shieldLineWidth = 4;
-export const shieldStrokeColor = 'black';
 export const pickupItemsCount = 2;
 export const shieldWidth = 40;
 export const shieldHeight = 60;
