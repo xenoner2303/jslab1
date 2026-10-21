@@ -8,6 +8,8 @@ import { wrap } from './sim/arena.js';
 import { loadAll } from '../assets/loader.js';
 import {initAudio} from './sim/audio.js'
 import {initHud} from './sim/hud.js'
+import { Lobby } from './sim/lobby.js';
+import { initLobbyRendering } from './sim/lobbyRendering.js';
 import {
   drawShip,
   drawGrid,
@@ -20,12 +22,31 @@ import {
 import { configureCanvas } from './render/canvas.js';
 import { step, shipWidth, shipHeight } from '../config/settings.js';
 
-const world = new World(window.innerWidth, window.innerHeight);
 const hud = initHud();
 
-initGame();
+startLobby();
 
-async function initGame() {
+function startLobby(){
+  const lobby = new Lobby();
+  const lobbyScreen = document.getElementById('lobby-screen');
+  initLobbyRendering(lobby);
+
+  lobby.addEventListener('joined', (event) => {
+    const { room, playerName } = event.detail;
+    console.log(`Player ${playerName} join to room`, room.name);
+    
+    lobbyScreen.style.display = 'none';
+
+    lobbyScreen.style.display = 'none';
+    document.getElementById('loading-screen').style.display = 'flex';
+
+    initGame(room, playerName);
+  });
+
+  lobby.startAutoRefresh();
+}
+
+async function initGame(room, playerName) {
   const canvasConfig = configureCanvas(window);
   
   const loadingScreen = document.getElementById('loading-screen');
@@ -62,7 +83,11 @@ async function initGame() {
     });
 
     const audio = initAudio(audioCtx, assets);
-  
+    
+    const arenaWidth = room.arenaConfig.width;
+    const arenaHeight = room.arenaConfig.height;
+    const world = new World(arenaWidth, arenaHeight);
+
     world.addEventListener('shoot', () => audio.playShoot());
     world.addEventListener('exploded', () => audio.playExplosion());
     world.addEventListener('hit', (event) => audio.playHit(event.detail.type));
@@ -74,22 +99,20 @@ async function initGame() {
 
     loadingScreen.style.display = 'none';
     
-    startGame(assets, canvasConfig);
+    startGame(world, assets, canvasConfig, arenaWidth, arenaHeight, playerName);
   } 
   catch (error) 
   {
-    console.error('Помилка під час ініціалізації гри:', error);
+    console.error('Error during game initialisation', error);
     loadingText.textContent = 'Не пограєш ти сьогодні, сорі';
   }
 }
 
-function startGame(assets, canvasConfig) {
+function startGame(world, assets, canvasConfig, arenaWidth, arenaHeight, playerName) {
   const input = createInput(window);
 
-  const startMainShipPos = new Vector2(
-    window.innerWidth / 2,
-    window.innerHeight / 2
-  );
+  const startMainShipPos = new Vector2(arenaWidth / 2, arenaHeight / 2);
+
   const mainShipRadius = Math.sqrt(shipWidth ** 2 + shipHeight ** 2) / 2; // rectangle diag formula
 
   let mainShip = new Ship(
@@ -97,7 +120,8 @@ function startGame(assets, canvasConfig) {
     new Vector2(0, 0),
     mainShipRadius,
     0,
-    input
+    input,
+    playerName
   );
   world.spawn(mainShip);
 
@@ -115,7 +139,7 @@ function startGame(assets, canvasConfig) {
     };
 
     world.step(dt, input);
-    wrap(mainShip, window.innerWidth, window.innerHeight);
+    wrap(mainShip, arenaWidth, arenaHeight);
 
     input.clearJustPressed();
   }
@@ -153,6 +177,7 @@ function startGame(assets, canvasConfig) {
       angle: previous.angle + angleChange * alpha,
       thrust: previous.thrust + (mainShip.thrust - previous.thrust) * alpha,
       angleChange,
+      playerName: mainShip.playerName,
     };
 
     drawGrid(ctx, window.innerWidth, window.innerHeight);

@@ -56,3 +56,6 @@ export const barrierShieldLineWidth = 4;
 export const pickupItemsCount = 2;
 export const shieldWidth = 40;
 export const shieldHeight = 60;
+
+// lobby
+export const lobbyRefresh = 5000;

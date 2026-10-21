@@ -38,7 +38,7 @@ body {
   position: fixed;
   inset: 0;
   z-index: 2;
-  display: flex;
+  display: none;
   flex-direction: column;
   align-items: center;
   justify-content: center;
@@ -107,4 +107,111 @@ body {
   text-transform: uppercase;
 
   display: none;
+}
+
+#lobby-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 3; /* Вище за інші екрани */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 15, 25, 0.95);
+  color: #ffffff;
+  padding: 20px;
+}
+
+#lobby-screen h2 {
+  margin-bottom: 20px;
+  font-size: 28px;
+}
+
+#lobby-controls {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+#player-name-input {
+  padding: 10px 15px;
+  font-size: 16px;
+  border-radius: 5px;
+  border: 1px solid #ccc;
+  outline: none;
+}
+
+#refresh-rooms-btn {
+  padding: 10px 20px;
+  font-size: 16px;
+  border: none;
+  border-radius: 5px;
+  background: #2196f3;
+  color: white;
+  cursor: pointer;
+}
+
+#refresh-rooms-btn:hover {
+  background: #1976d2;
+}
+
+#rooms-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(400px, 90vw);
+  max-height: 300px;
+  overflow-y: auto;
+  margin-bottom: 15px;
+}
+
+.room-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 15px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+
+.room-card:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.room-card.selected {
+  border-color: #4caf50;
+  background: rgba(76, 175, 80, 0.2);
+}
+
+.room-card h3 {
+  margin: 0 0 5px 0;
+  font-size: 18px;
+}
+
+.room-card p {
+  margin: 0;
+  font-size: 14px;
+  color: #ccc;
+}
+
+.join-btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  background: #4caf50;
+  color: white;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.join-btn:hover {
+  background: #43a047;
+}
+
+#lobby-error {
+  color: #ff5252;
+  font-size: 14px;
+  min-height: 20px;
 }

@@ -16,7 +16,7 @@ class Ship extends Entity {
   #hp = 0;
   #respawnTimer = 0;
 
-  constructor(pos, vel, radius, angle, input) {
+  constructor(pos, vel, radius, angle, input, playerName) {
     super(pos, vel, radius, true, angle, 'mainShip');
 
     this.thrust = 0;
@@ -25,6 +25,7 @@ class Ship extends Entity {
     this.#hp = maxShipHp;
     this.score = 0;
     this.hasShield = false;
+    this.playerName = playerName;
   }
 
   get hp() {
