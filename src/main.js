@@ -7,6 +7,7 @@ import { Vector2 } from './sim/vector.js';
 import { wrap } from './sim/arena.js';
 import { loadAll } from '../assets/loader.js';
 import {initAudio} from './sim/audio.js'
+import {initHud} from './sim/hud.js'
 import {
   drawShip,
   drawGrid,
@@ -20,6 +21,7 @@ import { configureCanvas } from './render/canvas.js';
 import { step, shipWidth, shipHeight } from '../config/settings.js';
 
 const world = new World(window.innerWidth, window.innerHeight);
+const hud = initHud();
 
 initGame();
 
@@ -32,7 +34,7 @@ async function initGame() {
   const startBtn = document.getElementById('start-btn');
 
   let audioCtx = null; // for browser audio
-  
+
   await new Promise((resolve) => {
     startBtn.addEventListener('click', () => {
       audioCtx = new window.AudioContext();
@@ -65,7 +67,10 @@ async function initGame() {
     world.addEventListener('exploded', () => audio.playExplosion());
     world.addEventListener('hit', (event) => audio.playHit(event.detail.type));
     world.addEventListener('environment', (event) => audio.playEnvironmentSound(event.detail.type));
-    world.addEventListener('kill', (event) => audio.playKillJoke(event.detail.count, event.detail.type));
+    world.addEventListener('kill', (event) => {
+      audio.playKillJoke(event.detail.count, event.detail.type); 
+      hud.showKillMessage(event.detail.count);
+    });
 
     loadingScreen.style.display = 'none';
     
@@ -117,12 +122,7 @@ function startGame(assets, canvasConfig) {
 
   function render(alpha, stats) {
     const ctx = canvasConfig.ctx;
-    const hud = document.getElementById('hud');
-    hud.querySelector('#steps').textContent = `Steps: ${stats.sps}`;
-    hud.querySelector('#fps').textContent = `FPS: ${stats.fps.toFixed(2)}`;
-    hud.querySelector('#frameTime').textContent =
-      `Frame Time: ${stats.frameTime.toFixed(2)} ms`;
-    hud.querySelector('#score').textContent = `Score: ${mainShip.score} bliblies`;
+    hud.update(stats, mainShip.score);
 
     ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
 
