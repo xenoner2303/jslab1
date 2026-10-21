@@ -1,20 +1,14 @@
 import {
   gridColor,
-  bulletAnglePower,
-  bulletThurstMultiplier,
-  bulletWidth,
-  bulletHeight,
+  shipAnglePower,
+  shipThurstMultiplier,
+  shipWidth,
+  shipHeight,
   gridSize,
-  bulletLineWidth,
-  bulletFillStyle,
-  bulletStrokeStyle,
-  bulletFrontThurstColor,
-  bulletBackThurstColor,
-  bulletThurstLineWidth,
-  bulletThurstLineCount,
-  bliblieFillStyle,
-  bliblieEyeFillStyle,
-  bliblieStrokeStyle,
+  shipFrontThurstColor,
+  shipBackThurstColor,
+  shipThurstLineWidth,
+  shipThurstLineCount,
   miniRocketHeight,
   miniRocketWidth,
   miniRocketFillStyle,
@@ -22,45 +16,21 @@ import {
   explosionColors,
   barrierShieldAdditionalRadius,
   barrierShieldStrokeStyle,
-  shieldFillColor,
-  shieldLineWidth,
-  shieldStrokeColor,
   barrierShieldLineWidth,
   shieldWidth,
   shieldHeight,
+  bliblieWidth,
+  bliblieHeight
 } from '../../config/settings.js';
 
-function drawShip(ctx, ship) {
+function drawShip(ctx, ship, shipImg) {
   ctx.save();
   ctx.translate(ship.x, ship.y);
   ctx.rotate(ship.angle);
 
-  ctx.fillStyle = bulletFillStyle;
-  ctx.strokeStyle = bulletStrokeStyle;
-  ctx.lineWidth = bulletLineWidth;
-
-  const bulletRadius = bulletWidth / 2;
-  const bulletBodyLength = bulletHeight - bulletRadius;
-
-  ctx.beginPath();
-  ctx.moveTo(-bulletHeight / 2, -bulletWidth / 2);
-
-  ctx.lineTo(bulletBodyLength - bulletHeight / 2, -bulletWidth / 2);
-
-  ctx.arc(
-    bulletBodyLength - bulletHeight / 2,
-    0,
-    bulletRadius,
-    -Math.PI / 2,
-    Math.PI / 2,
-    false
-  );
-
-  ctx.lineTo(-bulletHeight / 2, bulletWidth / 2);
-  ctx.closePath();
-
-  ctx.fill();
-  ctx.stroke();
+  if (shipImg) {
+    ctx.drawImage(shipImg, -shipHeight/2, -shipWidth/2, shipHeight, shipWidth);
+  }
 
   if (ship.thrust !== 0) {
     drawBulletThrust(ctx, ship.thrust, ship.angleChange);
@@ -73,30 +43,30 @@ function drawBulletThrust(ctx, thrust, angleChange) {
   if (thrust === 0) return;
 
   const direction = thrust > 0 ? -1 : 1;
-  const length = Math.abs(thrust) * bulletThurstMultiplier;
+  const length = Math.abs(thrust) * shipThurstMultiplier;
 
-  ctx.strokeStyle = thrust > 0 ? bulletFrontThurstColor : bulletBackThurstColor;
+  ctx.strokeStyle = thrust > 0 ? shipFrontThurstColor : shipBackThurstColor;
 
-  ctx.lineWidth = bulletThurstLineWidth;
+  ctx.lineWidth = shipThurstLineWidth;
 
   let lineSpacing = 0;
   let y = 0;
 
-  if (bulletThurstLineCount == 1) {
+  if (shipThurstLineCount == 1) {
     y = 0;
   } else {
     lineSpacing =
-      (bulletWidth - bulletThurstLineWidth) / (bulletThurstLineCount - 1);
+      (shipWidth - shipThurstLineWidth) / (shipThurstLineCount - 1);
 
-    y = -bulletWidth / 2 + bulletThurstLineWidth / 2;
+    y = -shipWidth / 2 + shipThurstLineWidth / 2;
   }
 
-  for (let i = 0; i < bulletThurstLineCount; i++) {
-    const startX = direction * (bulletHeight / 2);
+  for (let i = 0; i < shipThurstLineCount; i++) {
+    const startX = direction * (shipHeight / 2);
     const endX = startX + direction * length;
 
     const controlX = (startX + endX) / 2;
-    const controlY = y + angleChange * length * direction * bulletAnglePower;
+    const controlY = y + angleChange * length * direction * shipAnglePower;
 
     ctx.beginPath();
     ctx.moveTo(startX, y);
@@ -130,45 +100,13 @@ function drawGrid(ctx, width, height) {
   }
 }
 
-function drawBliBlie(ctx, bliblie) {
+function drawBliBlie(ctx, bliblie, bliblieImg) {
   ctx.save();
-
   ctx.translate(bliblie.pos.x, bliblie.pos.y);
-  ctx.fillStyle = bliblieFillStyle;
-  ctx.strokeStyle = bliblieStrokeStyle;
 
-  // head
-  ctx.beginPath();
-  ctx.arc(0, -20, 10, 0, Math.PI * 2); // x, y, radius, startAngle, endAngle
-  ctx.fill();
-
-  // eyes
-  ctx.fillStyle = bliblieEyeFillStyle;
-
-  ctx.beginPath();
-  ctx.arc(-4, -22, 2, 0, Math.PI * 2);
-  ctx.arc(4, -22, 2, 0, Math.PI * 2);
-  ctx.fill();
-
-  // body
-  ctx.fillStyle = bliblieFillStyle;
-  ctx.fillRect(-8, -10, 16, 25);
-
-  // arms
-  ctx.beginPath();
-  ctx.moveTo(-8, -5);
-  ctx.lineTo(-18, 5);
-  ctx.moveTo(8, -5);
-  ctx.lineTo(18, 5);
-  ctx.stroke();
-
-  // feet
-  ctx.beginPath();
-  ctx.moveTo(-5, 15);
-  ctx.lineTo(-10, 27);
-  ctx.moveTo(5, 15);
-  ctx.lineTo(10, 27);
-  ctx.stroke();
+  if (bliblieImg) {
+    ctx.drawImage(bliblieImg, -bliblieWidth/2, -bliblieHeight/2, bliblieWidth, bliblieHeight);
+  }
 
   ctx.restore();
 }
@@ -214,23 +152,13 @@ function drawExplosion(ctx, explosion) {
   ctx.restore();
 }
 
-function drawShield(ctx, shield) {
-  ctx.save();
-
+function drawShield(ctx, shield, shieldImg) {
+ctx.save();
   ctx.translate(shield.pos.x, shield.pos.y);
-  ctx.lineWidth = shieldLineWidth;
-  ctx.strokeStyle = shieldStrokeColor;
-  ctx.fillStyle = shieldFillColor;
 
-  ctx.beginPath();
-  ctx.moveTo(-20, -25);
-  ctx.lineTo(20, -25);
-  ctx.lineTo(20, 10);
-  ctx.quadraticCurveTo(0, 35, -20, 10);
-  ctx.closePath();
-
-  ctx.fill();
-  ctx.stroke();
+  if (shieldImg) {
+    ctx.drawImage(shieldImg, -shieldWidth/2, -shieldHeight/2, shieldWidth, shieldHeight);
+  }
 
   ctx.restore();
 }

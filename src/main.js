@@ -6,6 +6,8 @@ import { World } from './sim/world.js';
 import { Vector2 } from './sim/vector.js';
 import { wrap } from './sim/arena.js';
 import { loadAll } from '../assets/loader.js';
+import {initAudio} from './sim/audio.js'
+import {initHud} from './sim/hud.js'
 import {
   drawShip,
   drawGrid,
@@ -16,7 +18,10 @@ import {
   drawBarrierShield,
 } from './render/draw.js';
 import { configureCanvas } from './render/canvas.js';
-import { step, bulletWidth, bulletHeight } from '../config/settings.js';
+import { step, shipWidth, shipHeight } from '../config/settings.js';
+
+const world = new World(window.innerWidth, window.innerHeight);
+const hud = initHud();
 
 initGame();
 
@@ -29,7 +34,7 @@ async function initGame() {
   const startBtn = document.getElementById('start-btn');
 
   let audioCtx = null; // for browser audio
-  
+
   await new Promise((resolve) => {
     startBtn.addEventListener('click', () => {
       audioCtx = new window.AudioContext();
@@ -38,7 +43,7 @@ async function initGame() {
       resolve();
     }, { once: true }); // for only one click
   });
-
+  
   const controller = new AbortController();
 
   try 
@@ -56,8 +61,19 @@ async function initGame() {
       signal: controller.signal
     });
 
-    loadingScreen.style.display = 'none';
+    const audio = initAudio(audioCtx, assets);
+  
+    world.addEventListener('shoot', () => audio.playShoot());
+    world.addEventListener('exploded', () => audio.playExplosion());
+    world.addEventListener('hit', (event) => audio.playHit(event.detail.type));
+    world.addEventListener('environment', (event) => audio.playEnvironmentSound(event.detail.type));
+    world.addEventListener('kill', (event) => {
+      audio.playKillJoke(event.detail.count, event.detail.type); 
+      hud.showKillMessage(event.detail.count);
+    });
 
+    loadingScreen.style.display = 'none';
+    
     startGame(assets, canvasConfig);
   } 
   catch (error) 
@@ -69,12 +85,12 @@ async function initGame() {
 
 function startGame(assets, canvasConfig) {
   const input = createInput(window);
-  const world = new World(window.innerWidth, window.innerHeight);
+
   const startMainShipPos = new Vector2(
     window.innerWidth / 2,
     window.innerHeight / 2
   );
-  const mainShipRadius = Math.sqrt(bulletWidth ** 2 + bulletHeight ** 2) / 2; // rectangle diag formula
+  const mainShipRadius = Math.sqrt(shipWidth ** 2 + shipHeight ** 2) / 2; // rectangle diag formula
 
   let mainShip = new Ship(
     startMainShipPos,
@@ -106,12 +122,7 @@ function startGame(assets, canvasConfig) {
 
   function render(alpha, stats) {
     const ctx = canvasConfig.ctx;
-    const hud = document.getElementById('hud');
-    hud.querySelector('#steps').textContent = `Steps: ${stats.sps}`;
-    hud.querySelector('#fps').textContent = `FPS: ${stats.fps.toFixed(2)}`;
-    hud.querySelector('#frameTime').textContent =
-      `Frame Time: ${stats.frameTime.toFixed(2)} ms`;
-    hud.querySelector('#score').textContent = `Score: ${mainShip.score} bliblies`;
+    hud.update(stats, mainShip.score);
 
     ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
 
@@ -120,18 +131,16 @@ function startGame(assets, canvasConfig) {
     }
 
     for (const entity of world.ofKind('bliblie')) {
-      drawBliBlie(ctx, entity);
+      drawBliBlie(ctx, entity, assets.bliblie);
     }
 
     for (const entity of world.ofKind('explosion')) {
-      drawExplosion(ctx, entity);
+      drawExplosion(ctx, entity, assets.ship);
     }
-
-    console.log('Pickups:', [...world.ofKind('pickup')]);
 
     for (const entity of world.ofKind('pickup')) {
       if (entity.effect == 'shield') {
-        drawShield(ctx, entity);
+        drawShield(ctx, entity, assets.shield);
       }
     }
 
@@ -147,7 +156,7 @@ function startGame(assets, canvasConfig) {
     };
 
     drawGrid(ctx, window.innerWidth, window.innerHeight);
-    if (mainShip.alive) drawShip(ctx, interpolatedShip);
+    if (mainShip.alive) drawShip(ctx, interpolatedShip, assets.ship);
     if (mainShip.alive && mainShip.hasShield) {
       drawBarrierShield(ctx, mainShip);
     }

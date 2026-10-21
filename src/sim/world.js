@@ -19,20 +19,25 @@ import {
   miniRocketWidth,
   shieldWidth,
   shieldHeight,
+  bliblieScreamTimer
 } from '../../config/settings.js';
 import { Pickup } from './pickup.js';
 
-class World {
+class World extends EventTarget {
   #entities = new Map(); // entities storage/ key - id
   #pickupItems = ['shield'];
+  #shipKillCount = new Map();
 
   constructor(width, height) {
     if (!Number.isFinite(width) || !Number.isFinite(height)) {
       throw new Error('Trying to create world entity with no num edges');
     }
 
+    super();
+
     this.width = width;
     this.height = height;
+    this.bliblieScreamTimer = bliblieScreamTimer;
   }
 
   #getRandomFreeSpot(radius) {
@@ -59,6 +64,10 @@ class World {
     }
 
     this.#entities.set(e.id, e);
+
+    if(e.kind == "mainShip"){
+      this.#shipKillCount.set(e, 0); // initiate kill count
+    }
   }
 
   despawn(id) {
@@ -117,8 +126,16 @@ class World {
       localPickupItemsCount++;
     }
 
-    if (localBlibliesCount < blibliesCount) {
-      // if bliblie < 5 we spawn new
+    if(localBlibliesCount > 0){
+      this.bliblieScreamTimer -= dt * (1 + 0.7 * localBlibliesCount);
+
+      if (this.bliblieScreamTimer <= 0 && localBlibliesCount > 0) {
+        this.dispatchEvent(new CustomEvent('environment', { detail: { type: 'bliblie' } }));
+        this.bliblieScreamTimer = 5;
+      }
+    }
+
+    if (localBlibliesCount < blibliesCount) { // if bliblie < 5 we spawn new
       const difference = blibliesCount - localBlibliesCount;
 
       for (let i = 0; i < difference; i++) {
@@ -160,7 +177,6 @@ class World {
 
           const newShield = new Pickup(newPosition, shieldRadius, itemType);
           this.spawn(newShield);
-          console.log('Pickup spawned:', newShield);
         }
       }
     }
@@ -170,8 +186,7 @@ class World {
         entity.fireRequested = false;
 
         const direction = Vector2.fromAngle(entity.angle); // for direction
-        const rocketRadius =
-          Math.sqrt(miniRocketWidth ** 2 + miniRocketHeight ** 2) / 2; // rectangle diag formula
+        const rocketRadius = Math.sqrt(miniRocketWidth ** 2 + miniRocketHeight ** 2) / 2; // rectangle diag formula
         const spawnDistance = entity.radius + rocketRadius + 2; // ro avoid collisison riocket iisue
         const shipNose = entity.pos.add(direction.scale(spawnDistance)); // receive new Vector2
         const rocketVelocity = direction.scale(miniRocketSpeed);
@@ -185,6 +200,8 @@ class World {
         );
         miniRocket.behaviors.push(applyHoming);
         this.spawn(miniRocket);
+
+        this.dispatchEvent(new CustomEvent('shoot')); // for audio
       }
     }
 
@@ -226,6 +243,12 @@ class World {
         rocket.alive = false;
         bliblie.alive = false;
         rocket.owner.score += 1;
+
+        const currentKills = (this.#shipKillCount.get(rocket.owner)) + 1;
+        this.#shipKillCount.set(rocket.owner, currentKills);
+        
+        this.dispatchEvent(new CustomEvent('hit', { detail: { type: 'bliblie' } }));
+        this.dispatchEvent(new CustomEvent('kill', { detail: { count: currentKills, type: 'bliblie' } }));
       }
 
       if (
@@ -237,6 +260,8 @@ class World {
 
         if (ship.hit(damageFromObjects)) {
           this.spawn(new Explosion(ship.pos));
+          this.#shipKillCount.set(ship, 0);
+          this.dispatchEvent(new CustomEvent('exploded'));
         }
 
         bliblie.vel = new Vector2(-bliblie.vel.x, -bliblie.vel.y);
@@ -252,6 +277,8 @@ class World {
 
         if (rocket.owner != ship && ship.hit(damageFromMiniRocket)) {
           this.spawn(new Explosion(ship.pos));
+          this.#shipKillCount.set(rocket.owner, 0);
+          this.dispatchEvent(new CustomEvent('exploded'));
         }
 
         rocket.alive = false;
