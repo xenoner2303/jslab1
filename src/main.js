@@ -53,6 +53,7 @@ async function initGame(room, playerName) {
   const loadingText = document.getElementById('loading-text');
   const progressBar = document.getElementById('progress-bar');
   const startBtn = document.getElementById('start-btn');
+  const retryBtn = document.getElementById('retry-btn');
 
   let audioCtx = null; // for browser audio
 
@@ -103,8 +104,21 @@ async function initGame(room, playerName) {
   } 
   catch (error) 
   {
-    console.error('Error during game initialisation', error);
-    loadingText.textContent = 'Не пограєш ти сьогодні, сорі';
+    if (error.name == 'AbortError') {
+      loadingText.textContent = 'Denied by player';
+    } else {
+      loadingText.textContent = `Initialisation error: ${error.message}`;
+    }
+
+    retryBtn.display == "block";
+
+    retryBtn.addEventListener('click', () => {
+      retryBtn.style.display = 'none';
+      startBtn.style.display = 'block';
+      loadingText.textContent = 'Натисніть для старту';
+      progressBar.style.width = '0%';
+      initGame(room, playerName);
+    }, { once: true });
   }
 }
 

@@ -106,6 +106,13 @@ async function loadAll(manifest, { audioCtx, onProgress, signal } = {}) {
           updateProgress();
           return { id: item.id, type: 'sprite', data: res };
         })
+        .catch(async (err) => {
+            console.warn(`Failed to load sprite ${item.url}`, err);
+            const base = await loadFallbackSprite(signal);
+
+            updateProgress();
+            return { id: item.id, type: 'sprite', data: base };
+        })
       );
     }
   }
@@ -117,17 +124,13 @@ async function loadAll(manifest, { audioCtx, onProgress, signal } = {}) {
           updateProgress();
           return { id: item.id, type: 'sound', data: res };
         })
+        .catch((err) => {
+            console.warn(`Failed to load sound ${item.url}`, err);
+            updateProgress();
+            return { id: item.id, type: 'sound', data: null }; // no sound
+        })
       );
     }
-  }
-
-  if (manifest.arena) {
-    tasks.push(
-      withRetry(() => loadJson(manifest.arena, signal), { signal }).then((res) => {
-        updateProgress();
-        return { id: 'arena', type: 'json', data: res };
-      })
-    );
   }
 
   const results = await Promise.all(tasks); // perform all tasks in parallel
@@ -139,6 +142,14 @@ async function loadAll(manifest, { audioCtx, onProgress, signal } = {}) {
   }
 
   return assets;
+}
+
+async function loadFallbackSprite(signal) {
+  try {
+    return await loadImage('./assets/sprites/baseSprite.png', signal);
+  } catch (e) {
+    return document.createElement('canvas'); // if we cannot load base sprite too
+  }
 }
 
 export { fetchJson, withRetry, loadImage, loadJson, loadAll };

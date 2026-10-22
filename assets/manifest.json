@@ -15,6 +15,5 @@
     { "id": "pentaKill", "url": "/assets/sounds/pentaKill.wav" },
     { "id": "legendaryKill", "url": "/assets/sounds/legendaryKill.wav" },
     { "id": "bliblieDie", "url": "/assets/sounds/bliblieDie.wav" }
-  ],
-  "arena": "/assets/arena/arena.json"
+  ]
 }

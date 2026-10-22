@@ -79,6 +79,19 @@ body {
   cursor: pointer;
 }
 
+#retry-btn {
+  margin-top: 25px;
+  padding: 15px 30px;
+  border: none;
+  border-radius: 5px;
+  background: purple;
+  color: #ffffff;
+  font-size: 18px;
+  cursor: pointer;
+
+  display: none;
+}
+
 #start-btn:hover {
   background: #43a047;
 }

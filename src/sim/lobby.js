@@ -49,8 +49,8 @@ class Lobby extends EventTarget {
         } 
         else 
         {
-            console.log('Помилка завантаження кімнат:', error); // for users
-            this.dispatchEvent(new CustomEvent('error', { detail: { message: error.message } }));
+            console.log('Room dowloading error:', error);
+            this.dispatchEvent(new CustomEvent('error', { detail: { message: error.message } })); // for users
         }
     } 
     finally {

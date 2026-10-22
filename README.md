@@ -1,17 +1,115 @@
-## Composition
+## Five microtask/task ordering puzzles
 
-There are three ways to add extra properties and behaviors to objects:
+### 1) `async function puzzle1() {
+  console.log("1");
 
-- **1) Inheritance** — inheriting behavior from a parent class.
-- **2) Mixins** — adding new functions and properties to an object or prototype using `Object.assign`.
-- **3) Behavior-as-data** — storing behavior functions in an object's fields.
+  await new Promise((resolve) => {
+    setTimeout(() => {
+      console.log("5");
+      resolve();
+    }, 1000);
+    console.log("2");
+  });
 
-Inheritance has one major disadvantage: it can be inflexible. When we need to combine different behaviors, we may have to create additional classes.
-Mixins are more flexible because they allow us to combine different behaviors. However, the code must know the function names and how to call them. It also depends on whether these functions were added to the object.
-I chose behavior-as-data because it allows us to combine behaviors and call them through an anonymous shared loop. In my project, behaviors are stored in the `behaviors` array.
-This means I can dynamically add a new behavior to a `MiniRocket` in `World` using the `behavior(this, dt, context)` pattern. I do not need to write a separate function call because `Entity.update()` already calls all behaviors in a loop.
+  setTimeout(() => {
+    console.log("6");
+  }, 1000);
+  console.log("3");
+}
 
-## Pickup
+puzzle1();
+console.log("4");`
 
-I implemented `Pickup` as a separate class that extends `Entity` and stores the name of the effect. This allows me to move the effect handling logic into the external `step()` method in `World`.
-I did not implement the pickup as a behavior because it is not an active behavior. Instead, it is an object property that is processed when a collision occurs.
+**answer** = 1, 2, 4, 5, 3, 6
+**clarification** - synchronous code executes first (1, 2, 4), then the timer macro-task triggers and logs 5, and then, as a part of second microtask queue, the remaining part of the function logs 3 (as a microtask), and the final macro-task logs 6
+
+### 2) `new Promise((resolve) => {
+  setTimeout(() => {
+    console.log("1");
+  }, 1000);
+  resolve(2);
+}).then((val) => {
+  console.log(val);
+});
+
+console.log("3");`
+
+**answer** = 3, 2, 1
+**clarification** - synchronous code executes first (3), then the microtask from .then() executes and logs 2 and the final macro-task timer logs 1
+
+### 3) `Promise.resolve()
+  .then(() => {
+    console.log("1");
+    setTimeout(() => {
+      console.log("2");
+    }, 0);
+  })
+  .then(() => {
+    console.log("3");
+  });
+
+console.log("4");`
+
+**answer** = 4, 1, 3, 2
+**clarification** - synchronous code executes first (4), then the microtasks chain executes and logs 1 and 3, and finally the zero-delay macro-task logs 2
+
+### 4) `setTimeout(() => {
+  console.log("1");
+  requestAnimationFrame(() => {
+    console.log("3");
+  });
+  Promise.resolve().then(() => {
+    console.log("2");
+  });
+}, 0);
+
+Promise.resolve().then(() => {
+  console.log("4");
+});
+console.log("5");`
+
+**answer** = 5, 4, 1, 2, 3
+**clarification** - synchronous code executes first (5), then the microtask logs 4, followed by the macro-task logging 1, then the inner microtask queue flushes and logs 2, and finally requestAnimationFrame executes during the render step and logs 3
+
+### 5) `Promise.all([
+  Promise.resolve().then(() => {
+    console.log("1");
+  }),
+  Promise.resolve().then(() => {
+    console.log("2");
+    throw new Error("3");
+  }),
+  Promise.resolve().then(() => {
+    console.log("4");
+  }),
+])
+.then((results) => {
+  console.log("5", results);
+})
+.catch((err) => {
+  console.log(err.message);
+})
+.finally(() => {
+  console.log("6");
+});`
+
+**answer** = 1, 2, 4, 3, 6
+**clarification** - Promise.all executes all three promise microtasks (1, 2, 4) regardless of the result, but the thrown error triggers the .catch() block which logs 3, the success .then() block is skipped due to the rejection, and the final .finally() block logs 6
+
+## Failure Gallery
+
+### 1. 404 Sprite Handling
+![404 Sprite Fallback](./screenshots/404-sprite.png)
+*Gracefully falls back to default placeholder asset, allowing the game to start without crashing.*
+
+### 2. Network Timeout
+![Network Timeout Retry](./screenshots/timeout-retry.png)
+*Catches timeout errors and presents a clear Retry button to the user.*
+
+### 3. Abort Mid-load
+![Abort Request](./screenshots/abort-load.png)
+*Cleanly cancels active network requests via AbortController without uncaught promise rejections.*
+
+### 4. Corrupt JSON
+![Corrupt JSON Error](./screenshots/corrupt-json.png)
+*Catches JSON parsing errors and displays a user-friendly alert message.*
