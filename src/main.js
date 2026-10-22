@@ -54,6 +54,7 @@ async function initGame(room, playerName) {
   const progressBar = document.getElementById('progress-bar');
   const startBtn = document.getElementById('start-btn');
   const retryBtn = document.getElementById('retry-btn');
+  const cancelBtn = document.getElementById('cancel-btn');
 
   let audioCtx = null; // for browser audio
 
@@ -65,15 +66,18 @@ async function initGame(room, playerName) {
       resolve();
     }, { once: true }); // for only one click
   });
-  
-  const controller = new AbortController();
 
-  try 
-  {
-    const manifestRes = await fetch('./assets/manifest.json');
-    const manifest = await manifestRes.json();
+  async function loadGame() {
+    const controller = new AbortController();
+    cancelBtn.style.display = 'block';
+    retryBtn.style.display = 'none';
+    cancelBtn.onclick = () => controller.abort();
 
-    const assets = await loadAll(manifest, {
+    try {
+      const manifestRes = await fetch('./assets/manifest.json', { signal: controller.signal });
+      const manifest = await manifestRes.json();
+
+      const assets = await loadAll(manifest, {
       audioCtx,
       onProgress: (progress) => {
         const percent = Math.round(progress * 100);
@@ -81,45 +85,49 @@ async function initGame(room, playerName) {
         progressBar.style.width = `${percent}%`; // expand width of progress bar
       },
       signal: controller.signal
-    });
+      });
 
-    const audio = initAudio(audioCtx, assets);
-    
-    const arenaWidth = room.arenaConfig.width;
-    const arenaHeight = room.arenaConfig.height;
-    const world = new World(arenaWidth, arenaHeight);
+      cancelBtn.style.display = 'none';
+      cancelBtn.onclick = null;
+      const audio = initAudio(audioCtx, assets);
+      
+      const arenaWidth = room.arenaConfig.width;
+      const arenaHeight = room.arenaConfig.height;
+      const world = new World(arenaWidth, arenaHeight);
 
-    world.addEventListener('shoot', () => audio.playShoot());
-    world.addEventListener('exploded', () => audio.playExplosion());
-    world.addEventListener('hit', (event) => audio.playHit(event.detail.type));
-    world.addEventListener('environment', (event) => audio.playEnvironmentSound(event.detail.type));
-    world.addEventListener('kill', (event) => {
+      world.addEventListener('shoot', () => audio.playShoot());
+      world.addEventListener('exploded', () => audio.playExplosion());
+      world.addEventListener('hit', (event) => audio.playHit(event.detail.type));
+      world.addEventListener('environment', (event) => audio.playEnvironmentSound(event.detail.type));
+      world.addEventListener('kill', (event) => {
       audio.playKillJoke(event.detail.count, event.detail.type); 
       hud.showKillMessage(event.detail.count);
-    });
+      });
 
-    loadingScreen.style.display = 'none';
-    
-    startGame(world, assets, canvasConfig, arenaWidth, arenaHeight, playerName);
-  } 
-  catch (error) 
-  {
-    if (error.name == 'AbortError') {
+      loadingScreen.style.display = 'none';
+      
+      startGame(world, assets, canvasConfig, arenaWidth, arenaHeight, playerName);
+    } catch (error) {
+      cancelBtn.style.display = 'none';
+      cancelBtn.onclick = null;
+
+      if (error.name == 'AbortError') {
       loadingText.textContent = 'Denied by player';
-    } else {
+      } else {
       loadingText.textContent = `Initialisation error: ${error.message}`;
-    }
+      }
 
-    retryBtn.display == "block";
-
-    retryBtn.addEventListener('click', () => {
+      retryBtn.style.display = 'block';
+      retryBtn.onclick = () => {
       retryBtn.style.display = 'none';
-      startBtn.style.display = 'block';
-      loadingText.textContent = 'Натисніть для старту';
+      loadingText.textContent = '0%';
       progressBar.style.width = '0%';
-      initGame(room, playerName);
-    }, { once: true });
+      loadGame();
+      };
+    }
   }
+
+  await loadGame();
 }
 
 function startGame(world, assets, canvasConfig, arenaWidth, arenaHeight, playerName) {

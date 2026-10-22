@@ -107,6 +107,10 @@ async function loadAll(manifest, { audioCtx, onProgress, signal } = {}) {
           return { id: item.id, type: 'sprite', data: res };
         })
         .catch(async (err) => {
+            if (err.name == 'AbortError') {
+              throw err;
+            }
+
             console.warn(`Failed to load sprite ${item.url}`, err);
             const base = await loadFallbackSprite(signal);
 
@@ -125,6 +129,10 @@ async function loadAll(manifest, { audioCtx, onProgress, signal } = {}) {
           return { id: item.id, type: 'sound', data: res };
         })
         .catch((err) => {
+            if (err.name == 'AbortError') {
+              throw err;
+            }
+
             console.warn(`Failed to load sound ${item.url}`, err);
             updateProgress();
             return { id: item.id, type: 'sound', data: null }; // no sound
@@ -148,6 +156,10 @@ async function loadFallbackSprite(signal) {
   try {
     return await loadImage('./assets/sprites/baseSprite.png', signal);
   } catch (e) {
+    if (e.name == 'AbortError') {
+      throw e;
+    }
+
     return document.createElement('canvas'); // if we cannot load base sprite too
   }
 }
