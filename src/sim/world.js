@@ -19,7 +19,7 @@ import {
   miniRocketWidth,
   shieldWidth,
   shieldHeight,
-  bliblieScreamTimer
+  bliblieScreamTimer,
 } from '../../config/settings.js';
 import { Pickup } from './pickup.js';
 
@@ -65,7 +65,7 @@ class World extends EventTarget {
 
     this.#entities.set(e.id, e);
 
-    if(e.kind == "mainShip"){
+    if (e.kind == 'mainShip') {
       this.#shipKillCount.set(e, 0); // initiate kill count
     }
   }
@@ -126,16 +126,19 @@ class World extends EventTarget {
       localPickupItemsCount++;
     }
 
-    if(localBlibliesCount > 0){
+    if (localBlibliesCount > 0) {
       this.bliblieScreamTimer -= dt * (1 + 0.7 * localBlibliesCount);
 
       if (this.bliblieScreamTimer <= 0 && localBlibliesCount > 0) {
-        this.dispatchEvent(new CustomEvent('environment', { detail: { type: 'bliblie' } }));
+        this.dispatchEvent(
+          new CustomEvent('environment', { detail: { type: 'bliblie' } })
+        );
         this.bliblieScreamTimer = 5;
       }
     }
 
-    if (localBlibliesCount < blibliesCount) { // if bliblie < 5 we spawn new
+    if (localBlibliesCount < blibliesCount) {
+      // if bliblie < 5 we spawn new
       const difference = blibliesCount - localBlibliesCount;
 
       for (let i = 0; i < difference; i++) {
@@ -186,7 +189,8 @@ class World extends EventTarget {
         entity.fireRequested = false;
 
         const direction = Vector2.fromAngle(entity.angle); // for direction
-        const rocketRadius = Math.sqrt(miniRocketWidth ** 2 + miniRocketHeight ** 2) / 2; // rectangle diag formula
+        const rocketRadius =
+          Math.sqrt(miniRocketWidth ** 2 + miniRocketHeight ** 2) / 2; // rectangle diag formula
         const spawnDistance = entity.radius + rocketRadius + 2; // ro avoid collisison riocket iisue
         const shipNose = entity.pos.add(direction.scale(spawnDistance)); // receive new Vector2
         const rocketVelocity = direction.scale(miniRocketSpeed);
@@ -244,11 +248,17 @@ class World extends EventTarget {
         bliblie.alive = false;
         rocket.owner.score += 1;
 
-        const currentKills = (this.#shipKillCount.get(rocket.owner)) + 1;
+        const currentKills = this.#shipKillCount.get(rocket.owner) + 1;
         this.#shipKillCount.set(rocket.owner, currentKills);
-        
-        this.dispatchEvent(new CustomEvent('hit', { detail: { type: 'bliblie' } }));
-        this.dispatchEvent(new CustomEvent('kill', { detail: { count: currentKills, type: 'bliblie' } }));
+
+        this.dispatchEvent(
+          new CustomEvent('hit', { detail: { type: 'bliblie' } })
+        );
+        this.dispatchEvent(
+          new CustomEvent('kill', {
+            detail: { count: currentKills, type: 'bliblie' },
+          })
+        );
       }
 
       if (

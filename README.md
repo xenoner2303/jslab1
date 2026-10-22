@@ -1,20 +1,21 @@
 ## Five microtask/task ordering puzzles
 
 ### 1) `async function puzzle1() {
-  console.log("1");
 
-  await new Promise((resolve) => {
-    setTimeout(() => {
-      console.log("5");
-      resolve();
-    }, 1000);
-    console.log("2");
-  });
+console.log("1");
 
-  setTimeout(() => {
-    console.log("6");
-  }, 1000);
-  console.log("3");
+await new Promise((resolve) => {
+setTimeout(() => {
+console.log("5");
+resolve();
+}, 1000);
+console.log("2");
+});
+
+setTimeout(() => {
+console.log("6");
+}, 1000);
+console.log("3");
 }
 
 puzzle1();
@@ -24,12 +25,13 @@ console.log("4");`
 **clarification** - synchronous code executes first (1, 2, 4), then the timer macro-task triggers and logs 5, and then, as a part of second microtask queue, the remaining part of the function logs 3 (as a microtask), and the final macro-task logs 6
 
 ### 2) `new Promise((resolve) => {
-  setTimeout(() => {
-    console.log("1");
-  }, 1000);
-  resolve(2);
+
+setTimeout(() => {
+console.log("1");
+}, 1000);
+resolve(2);
 }).then((val) => {
-  console.log(val);
+console.log(val);
 });
 
 console.log("3");`
@@ -38,15 +40,16 @@ console.log("3");`
 **clarification** - synchronous code executes first (3), then the microtask from .then() executes and logs 2 and the final macro-task timer logs 1
 
 ### 3) `Promise.resolve()
-  .then(() => {
-    console.log("1");
-    setTimeout(() => {
-      console.log("2");
-    }, 0);
-  })
-  .then(() => {
-    console.log("3");
-  });
+
+.then(() => {
+console.log("1");
+setTimeout(() => {
+console.log("2");
+}, 0);
+})
+.then(() => {
+console.log("3");
+});
 
 console.log("4");`
 
@@ -54,17 +57,18 @@ console.log("4");`
 **clarification** - synchronous code executes first (4), then the microtasks chain executes and logs 1 and 3, and finally the zero-delay macro-task logs 2
 
 ### 4) `setTimeout(() => {
-  console.log("1");
-  requestAnimationFrame(() => {
-    console.log("3");
-  });
-  Promise.resolve().then(() => {
-    console.log("2");
-  });
+
+console.log("1");
+requestAnimationFrame(() => {
+console.log("3");
+});
+Promise.resolve().then(() => {
+console.log("2");
+});
 }, 0);
 
 Promise.resolve().then(() => {
-  console.log("4");
+console.log("4");
 });
 console.log("5");`
 
@@ -72,25 +76,26 @@ console.log("5");`
 **clarification** - synchronous code executes first (5), then the microtask logs 4, followed by the macro-task logging 1, then the inner microtask queue flushes and logs 2, and finally requestAnimationFrame executes during the render step and logs 3
 
 ### 5) `Promise.all([
-  Promise.resolve().then(() => {
-    console.log("1");
-  }),
-  Promise.resolve().then(() => {
-    console.log("2");
-    throw new Error("3");
-  }),
-  Promise.resolve().then(() => {
-    console.log("4");
-  }),
+
+Promise.resolve().then(() => {
+console.log("1");
+}),
+Promise.resolve().then(() => {
+console.log("2");
+throw new Error("3");
+}),
+Promise.resolve().then(() => {
+console.log("4");
+}),
 ])
 .then((results) => {
-  console.log("5", results);
+console.log("5", results);
 })
 .catch((err) => {
-  console.log(err.message);
+console.log(err.message);
 })
 .finally(() => {
-  console.log("6");
+console.log("6");
 });`
 
 **answer** = 1, 2, 4, 3, 6
@@ -99,17 +104,21 @@ console.log("5");`
 ## Failure Gallery
 
 ### 1. 404 Sprite Handling
+
 ![404 Sprite Fallback](./screenshots/404-sprite.png)
-*Gracefully falls back to default placeholder asset, allowing the game to start without crashing.*
+_Gracefully falls back to default placeholder asset, allowing the game to start without crashing._
 
 ### 2. Network Timeout
+
 ![Network Timeout Retry](./screenshots/timeout-retry.png)
-*Catches timeout errors and presents a clear Retry button to the user.*
+_Catches timeout errors and presents a clear Retry button to the user._
 
 ### 3. Abort Mid-load
+
 ![Abort Request](./screenshots/abort-load.png)
-*Cleanly cancels active network requests via AbortController without uncaught promise rejections.*
+_Cleanly cancels active network requests via AbortController without uncaught promise rejections._
 
 ### 4. Corrupt JSON
+
 ![Corrupt JSON Error](./screenshots/corrupt-json.png)
-*Catches JSON parsing errors and displays a user-friendly alert message.*
+_Catches JSON parsing errors and displays a user-friendly alert message._

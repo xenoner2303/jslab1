@@ -12,25 +12,31 @@ function initHud() {
       if (scoreE) scoreE.textContent = `Score: ${score} bliblies`;
       if (stepsE) stepsE.textContent = `Steps: ${stats.sps}`;
       if (fpsE) fpsE.textContent = `FPS: ${stats.fps.toFixed(2)}`;
-      if (frameTimeE) frameTimeE.textContent = `Frame Time: ${stats.frameTime.toFixed(2)} ms`;
+      if (frameTimeE)
+        frameTimeE.textContent = `Frame Time: ${stats.frameTime.toFixed(2)} ms`;
     },
     showKillMessage(count) {
-        if (count < 2) return;
-        const messages = { 2: 'Double Kill!', 3: 'Triple Kill!', 4: 'Quadra Kill!', 5: 'Penta Kill!' };
+      if (count < 2) return;
+      const messages = {
+        2: 'Double Kill!',
+        3: 'Triple Kill!',
+        4: 'Quadra Kill!',
+        5: 'Penta Kill!',
+      };
 
-        msgE.textContent = messages[count] ?? 'Legendary!';
-        msgE.style.display = 'block';
+      msgE.textContent = messages[count] ?? 'Legendary!';
+      msgE.style.display = 'block';
 
-        if (hideTimeout) {
-            clearTimeout(hideTimeout);
-        }
+      if (hideTimeout) {
+        clearTimeout(hideTimeout);
+      }
 
-        hideTimeout = setTimeout(() => {
-            msgE.classList.remove('visible');
-            msgE.textContent = '';
-        }, 2000);
-    }
+      hideTimeout = setTimeout(() => {
+        msgE.classList.remove('visible');
+        msgE.textContent = '';
+      }, 2000);
+    },
   };
 }
 
-export {initHud};
+export { initHud };

@@ -20,7 +20,7 @@ import {
   shieldWidth,
   shieldHeight,
   bliblieWidth,
-  bliblieHeight
+  bliblieHeight,
 } from '../../config/settings.js';
 
 function drawShip(ctx, ship, shipImg) {
@@ -35,7 +35,13 @@ function drawShip(ctx, ship, shipImg) {
   ctx.rotate(ship.angle);
 
   if (shipImg) {
-    ctx.drawImage(shipImg, -shipHeight / 2, -shipWidth / 2, shipHeight, shipWidth);
+    ctx.drawImage(
+      shipImg,
+      -shipHeight / 2,
+      -shipWidth / 2,
+      shipHeight,
+      shipWidth
+    );
   }
 
   if (ship.thrust !== 0) {
@@ -61,8 +67,7 @@ function drawBulletThrust(ctx, thrust, angleChange) {
   if (shipThurstLineCount == 1) {
     y = 0;
   } else {
-    lineSpacing =
-      (shipWidth - shipThurstLineWidth) / (shipThurstLineCount - 1);
+    lineSpacing = (shipWidth - shipThurstLineWidth) / (shipThurstLineCount - 1);
 
     y = -shipWidth / 2 + shipThurstLineWidth / 2;
   }
@@ -111,7 +116,13 @@ function drawBliBlie(ctx, bliblie, bliblieImg) {
   ctx.translate(bliblie.pos.x, bliblie.pos.y);
 
   if (bliblieImg) {
-    ctx.drawImage(bliblieImg, -bliblieWidth/2, -bliblieHeight/2, bliblieWidth, bliblieHeight);
+    ctx.drawImage(
+      bliblieImg,
+      -bliblieWidth / 2,
+      -bliblieHeight / 2,
+      bliblieWidth,
+      bliblieHeight
+    );
   }
 
   ctx.restore();
@@ -159,11 +170,17 @@ function drawExplosion(ctx, explosion) {
 }
 
 function drawShield(ctx, shield, shieldImg) {
-ctx.save();
+  ctx.save();
   ctx.translate(shield.pos.x, shield.pos.y);
 
   if (shieldImg) {
-    ctx.drawImage(shieldImg, -shieldWidth/2, -shieldHeight/2, shieldWidth, shieldHeight);
+    ctx.drawImage(
+      shieldImg,
+      -shieldWidth / 2,
+      -shieldHeight / 2,
+      shieldWidth,
+      shieldHeight
+    );
   }
 
   ctx.restore();

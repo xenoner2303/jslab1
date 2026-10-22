@@ -16,7 +16,9 @@ export function initLobbyRendering(lobby) {
     errorDiv.textContent = event.detail.message;
   });
 
-  refreshBtn.addEventListener('click', () => {lobby.refresh();});
+  refreshBtn.addEventListener('click', () => {
+    lobby.refresh();
+  });
 
   function renderRooms(rooms) {
     roomsContainer.innerHTML = '';
@@ -26,7 +28,7 @@ export function initLobbyRendering(lobby) {
       return;
     }
 
-    rooms.forEach(room => {
+    rooms.forEach((room) => {
       const roomCard = document.createElement('div');
       roomCard.className = 'room-card';
 
@@ -44,8 +46,7 @@ export function initLobbyRendering(lobby) {
         const playerName = nameInput.value;
         try {
           lobby.join(room.id, playerName);
-        } 
-        catch (err) {
+        } catch (err) {
           errorDiv.textContent = err.message;
         }
       });

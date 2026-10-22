@@ -6,8 +6,8 @@ import { World } from './sim/world.js';
 import { Vector2 } from './sim/vector.js';
 import { wrap } from './sim/arena.js';
 import { loadAll } from '../assets/loader.js';
-import {initAudio} from './sim/audio.js'
-import {initHud} from './sim/hud.js'
+import { initAudio } from './sim/audio.js';
+import { initHud } from './sim/hud.js';
 import { Lobby } from './sim/lobby.js';
 import { initLobbyRendering } from './sim/lobbyRendering.js';
 import {
@@ -26,7 +26,7 @@ const hud = initHud();
 
 startLobby();
 
-function startLobby(){
+function startLobby() {
   const lobby = new Lobby();
   const lobbyScreen = document.getElementById('lobby-screen');
   initLobbyRendering(lobby);
@@ -34,7 +34,7 @@ function startLobby(){
   lobby.addEventListener('joined', (event) => {
     const { room, playerName } = event.detail;
     console.log(`Player ${playerName} join to room`, room.name);
-    
+
     lobbyScreen.style.display = 'none';
 
     lobbyScreen.style.display = 'none';
@@ -48,7 +48,7 @@ function startLobby(){
 
 async function initGame(room, playerName) {
   const canvasConfig = configureCanvas(window);
-  
+
   const loadingScreen = document.getElementById('loading-screen');
   const loadingText = document.getElementById('loading-text');
   const progressBar = document.getElementById('progress-bar');
@@ -59,12 +59,16 @@ async function initGame(room, playerName) {
   let audioCtx = null; // for browser audio
 
   await new Promise((resolve) => {
-    startBtn.addEventListener('click', () => {
-      audioCtx = new window.AudioContext();
-      startBtn.style.display = 'none';
-      loadingText.textContent = '0%';
-      resolve();
-    }, { once: true }); // for only one click
+    startBtn.addEventListener(
+      'click',
+      () => {
+        audioCtx = new window.AudioContext();
+        startBtn.style.display = 'none';
+        loadingText.textContent = '0%';
+        resolve();
+      },
+      { once: true }
+    ); // for only one click
   });
 
   async function loadGame() {
@@ -74,55 +78,68 @@ async function initGame(room, playerName) {
     cancelBtn.onclick = () => controller.abort();
 
     try {
-      const manifestRes = await fetch('./assets/manifest.json', { signal: controller.signal });
+      const manifestRes = await fetch('./assets/manifest.json', {
+        signal: controller.signal,
+      });
       const manifest = await manifestRes.json();
 
       const assets = await loadAll(manifest, {
-      audioCtx,
-      onProgress: (progress) => {
-        const percent = Math.round(progress * 100);
-        loadingText.textContent = `${percent}%`;
-        progressBar.style.width = `${percent}%`; // expand width of progress bar
-      },
-      signal: controller.signal
+        audioCtx,
+        onProgress: (progress) => {
+          const percent = Math.round(progress * 100);
+          loadingText.textContent = `${percent}%`;
+          progressBar.style.width = `${percent}%`; // expand width of progress bar
+        },
+        signal: controller.signal,
       });
 
       cancelBtn.style.display = 'none';
       cancelBtn.onclick = null;
       const audio = initAudio(audioCtx, assets);
-      
+
       const arenaWidth = room.arenaConfig.width;
       const arenaHeight = room.arenaConfig.height;
       const world = new World(arenaWidth, arenaHeight);
 
       world.addEventListener('shoot', () => audio.playShoot());
       world.addEventListener('exploded', () => audio.playExplosion());
-      world.addEventListener('hit', (event) => audio.playHit(event.detail.type));
-      world.addEventListener('environment', (event) => audio.playEnvironmentSound(event.detail.type));
+      world.addEventListener('hit', (event) =>
+        audio.playHit(event.detail.type)
+      );
+      world.addEventListener('environment', (event) =>
+        audio.playEnvironmentSound(event.detail.type)
+      );
       world.addEventListener('kill', (event) => {
-      audio.playKillJoke(event.detail.count, event.detail.type); 
-      hud.showKillMessage(event.detail.count);
+        audio.playKillJoke(event.detail.count, event.detail.type);
+        hud.showKillMessage(event.detail.count);
       });
 
       loadingScreen.style.display = 'none';
-      
-      startGame(world, assets, canvasConfig, arenaWidth, arenaHeight, playerName);
+
+      startGame(
+        world,
+        assets,
+        canvasConfig,
+        arenaWidth,
+        arenaHeight,
+        playerName
+      );
     } catch (error) {
       cancelBtn.style.display = 'none';
       cancelBtn.onclick = null;
 
       if (error.name == 'AbortError') {
-      loadingText.textContent = 'Denied by player';
+        loadingText.textContent = 'Denied by player';
       } else {
-      loadingText.textContent = `Initialisation error: ${error.message}`;
+        loadingText.textContent = `Initialisation error: ${error.message}`;
       }
 
       retryBtn.style.display = 'block';
       retryBtn.onclick = () => {
-      retryBtn.style.display = 'none';
-      loadingText.textContent = '0%';
-      progressBar.style.width = '0%';
-      loadGame();
+        retryBtn.style.display = 'none';
+        loadingText.textContent = '0%';
+        progressBar.style.width = '0%';
+        loadGame();
       };
     }
   }
@@ -130,7 +147,14 @@ async function initGame(room, playerName) {
   await loadGame();
 }
 
-function startGame(world, assets, canvasConfig, arenaWidth, arenaHeight, playerName) {
+function startGame(
+  world,
+  assets,
+  canvasConfig,
+  arenaWidth,
+  arenaHeight,
+  playerName
+) {
   const input = createInput(window);
 
   const startMainShipPos = new Vector2(arenaWidth / 2, arenaHeight / 2);
