@@ -1,4 +1,5 @@
 import { lobbyRefresh } from '../../config/settings.js';
+import { GameConnection } from '../connection.js';
 
 class Lobby extends EventTarget {
   #rooms = [];
@@ -26,7 +27,7 @@ class Lobby extends EventTarget {
         AbortSignal.timeout(3000),
       ]); // cancel http if either signal abort or timer
 
-      const response = await fetch('./api/rooms.json', { signal });
+      const response = await fetch('/api/rooms', { signal }); // swap source to /api/rooms for server-side room management
 
       if (!response.ok) {
         throw new Error(`HTTP error - ${response.status}`);
@@ -41,7 +42,9 @@ class Lobby extends EventTarget {
       }
 
       this.dispatchEvent(
-        new CustomEvent('roomsupdated', { detail: { rooms: this.#rooms } })
+        new CustomEvent('roomsupdated', {
+          detail: { rooms: this.#rooms },
+        })
       );
     } catch (error) {
       if (error.name === 'AbortError') {
@@ -89,7 +92,7 @@ class Lobby extends EventTarget {
       throw new Error('The selected room was not found');
     }
 
-    if (selectedRoom.currentPlayers == selectedRoom.maxPlayers) {
+    if (selectedRoom.currentPlayers >= selectedRoom.maxPlayers) {
       throw new Error('The room is full');
     }
 
@@ -97,17 +100,46 @@ class Lobby extends EventTarget {
       throw new Error('Please enter player name');
     }
 
-    selectedRoom.currentPlayers++; // just in memory
-    this.stopAutoRefresh(); // stop http before exit
+    this.stopAutoRefresh(); 
 
-    this.dispatchEvent(
-      new CustomEvent('joined', {
-        detail: {
-          room: selectedRoom,
-          playerName: playerName.trim(),
-        },
-      })
-    );
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}`;
+    
+    const connection = new GameConnection(wsUrl); // create a new GameConnection instance
+    let hasJoined = false;
+
+    connection.addEventListener('open', () => {
+      connection.send({
+        type: 'join',
+        room: selectedRoom.id,
+        name: playerName.trim(),
+      });
+
+      if (hasJoined) {
+        return;
+      }
+      hasJoined = true;
+
+      this.dispatchEvent(
+        new CustomEvent('joined', {
+          detail: {
+            room: selectedRoom,
+            playerName: playerName.trim(),
+            connection,
+          },
+        })
+      );
+    });
+
+    connection.addEventListener('error', () => {
+      this.dispatchEvent(
+        new CustomEvent('error', {
+          detail: { message: 'AHAHAH he cannot join to server' },
+        })
+      );
+    });
+
+    connection.connect();
   }
 }
 

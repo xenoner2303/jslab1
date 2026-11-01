@@ -3,12 +3,14 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { config } from "./config.js";
+import { RoomManager } from "./rooms.js";
+import { setupWebSocket } from "./ws.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PUBLIC_DIR = path.resolve(__dirname, "../../client/dist");
 
-const rooms = new Map();
+const roomManager = new RoomManager();
 
 const MIME_TYPES = {
   ".html": "text/html; charset=UTF-8",
@@ -49,32 +51,28 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === "GET" && pathname === "/api/rooms") {
-      const roomList = Array.from(rooms.values()).map(r => ({
-        id: r.id,
-        name: r.name,
-        playersCount: r.players.size,
-      }));
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify(roomList));
-      return;
+        const roomList = Array.from(roomManager.rooms.values()).map((r) => ({
+            id: r.id,
+            name: r.name,
+            maxPlayers: r.maxPlayers,
+            currentPlayers: r.players.size,
+            arenaConfig: { width: 1200, height: 800 }
+        }));
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ rooms: roomList }));
+        return;
     }
 
     if (req.method === "POST" && pathname === "/api/rooms") { // create room
       try {
         const data = await parseJsonBody(req, 1024);
         const roomName = data.name ? String(data.name).trim() : "Unnamed Room";
+        const maxPlayers = data.maxPlayers ? parseInt(data.maxPlayers, 10) : 4;
         
-        const roomId = Math.random().toString(36).substring(2, 9)
-        const newRoom = {
-          id: roomId,
-          name: roomName,
-          players: new Set(),
-        };
-
-        rooms.set(roomId, newRoom);
+        const newRoom = roomManager.createRoom(roomName, maxPlayers);
 
         res.writeHead(201, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ success: true, roomId }));
+        res.end(JSON.stringify({ success: true, roomId: newRoom.id }));
       } catch (err) {
         const status = err.message === "Payload Too Large" ? 413 : 400;
         res.writeHead(status, { "Content-Type": "application/json" });
@@ -123,6 +121,11 @@ const server = http.createServer(async (req, res) => {
     res.end(JSON.stringify({ error: "Internal Server Error" }));
   }
 });
+
+setupWebSocket(server, roomManager); // connect websocket to http server and room manager
+
+roomManager.createRoom("room1"); // start rooms
+roomManager.createRoom("room2", 8);
 
 server.listen(config.port, config.host, () => {
   console.log(`Server running at http://${config.host}:${config.port}`);
