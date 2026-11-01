@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <title>JS Lab 1</title>
+    <link rel="stylesheet" href="./style.css" />
+    <script type="module" src="/src/main.js"></script>
+  </head>
+  <body>
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="kill-msg"></div>
+
+    <div id="hud">
+      <div id="steps"></div>
+      <div id="fps"></div>
+      <div id="frameTime"></div>
+      <div id="score"></div>
+    </div>
+
+    <section id="chat-panel" aria-label="Room chat">
+      <h2>Чат кімнати</h2>
+      <div id="chat-messages" role="log" aria-live="polite"></div>
+      <form id="chat-form">
+        <label class="visually-hidden" for="chat-input">Повідомлення</label>
+        <input
+          id="chat-input"
+          type="text"
+          maxlength="256"
+          autocomplete="off"
+          placeholder="Напишіть повідомлення..."
+        />
+        <button type="submit">Надіслати</button>
+      </form>
+    </section>
+
+    <div id="loading-screen">
+      <h2 id="loading-text">Натисніть для старту</h2>
+
+      <div id="progress-container">
+        <div id="progress-bar"></div>
+      </div>
+
+      <button id="cancel-btn" type="button">Cancel</button>
+      <button id="retry-btn" type="button">Спробувати ще раз</button>
+      <button id="start-btn" type="button">Почати гру</button>
+    </div>
+
+    <div id="lobby-screen">
+      <h2>Multiplayer Lobby</h2>
+
+      <div id="lobby-controls">
+        <input
+          type="text"
+          id="player-name-input"
+          placeholder="Enter your name..."
+        />
+        <button id="refresh-rooms-btn" type="button">Refresh Rooms</button>
+      </div>
+
+      <div class="create-room-box">
+        <h3>Створити кімнату</h3>
+        <label for="new-room-name">Назва кімнати</label>
+        <input type="text" id="new-room-name" placeholder="Назва кімнати..." />
+
+        <label for="new-room-max">Максимум гравців</label>
+        <input type="number" id="new-room-max" value="4" min="1" max="8" />
+        <button type="button" id="create-room-btn">Створити кімнату</button>
+      </div>
+
+      <div id="rooms-container"></div>
+
+      <div id="lobby-error"></div>
+    </div>
+  </body>
+</html>

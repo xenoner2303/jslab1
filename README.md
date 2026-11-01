@@ -1,14 +1,61 @@
-## Composition
-There are three ways to add extra properties and behaviors to objects:
-* **1) Inheritance** — inheriting behavior from a parent class.
-* **2) Mixins** — adding new functions and properties to an object or prototype using `Object.assign`.
-* **3) Behavior-as-data** — storing behavior functions in an object's fields.
+## M3: Replay backpressure check
+Replay file: `server/logs/room1-test-200mb.ndjson`
+Download URL: `http://localhost:3000/api/replays/room1-test-200mb`
+DevTools network throttling: 3G
+- RSS was printed once per second in the server console by temporary timer:
+```
+const rssMetricsInterval = setInterval(() => {
+  const rssMemoryMB = process.memoryUsage().rss / 1024 / 1024;
+  console.log(`Server RSS Memory: ${rssMemoryMB.toFixed(2)} MB`);
+}, 1000);
+```
 
-Inheritance has one major disadvantage: it can be inflexible. When we need to combine different behaviors, we may have to create additional classes.
-Mixins are more flexible because they allow us to combine different behaviors. However, the code must know the function names and how to call them. It also depends on whether these functions were added to the object.
-I chose behavior-as-data because it allows us to combine behaviors and call them through an anonymous shared loop. In my project, behaviors are stored in the `behaviors` array.
-This means I can dynamically add a new behavior to a `MiniRocket` in `World` using the `behavior(this, dt, context)` pattern. I do not need to write a separate function call because `Entity.update()` already calls all behaviors in a loop.
+Graphs of RSS memory usage during 2 mins backpressure test:
+![RSS](./screenshots/m3-backpressure-rss.png)
 
-## Pickup
-I implemented `Pickup` as a separate class that extends `Entity` and stores the name of the effect. This allows me to move the effect handling logic into the external `step()` method in `World`.
-I did not implement the pickup as a behavior because it is not an active behavior. Instead, it is an object property that is processed when a collision occurs.
+## M4: Abuse handling and the event loop
+### Abuse limits
+Each WebSocket gets a token bucket: 30 messages per second, with a burst of 30. Exceeding it closes the connection with code `4008`.
+Message size is capped at 64 KiB; rooms allow up to 8 players, and the server allows up to 100 rooms.
+If a client's outgoing buffer exceeds 256 KiB, its non-critical `state` updates are skipped. Chat and roster messages are kept.
+
+### Event-loop blocking demonstration
+Node runs JavaScript on one thread. The event loop moves through timers, pending callbacks, poll (I/O), check (`setImmediate`), and close callbacks; promise and `process.nextTick` callbacks run between phases.
+
+`GET /api/slow` blocks that thread for 3000 ms (need for demosntration):
+```text
+http://localhost:3000/api/slow
+```
+
+### Backpressure
+When a writable is slower than its readable, backpressure slows the producer instead of letting buffered data grow without limit. In M3, `pipeline(readStream, res)` streams the throttled 200 MB replay; the graph above shows server RSS during download.
+
+### Errors and rejected promises
+An `EventEmitter` with no `"error"` listener throws and can bring down the process:
+```text
+Error: boom
+    at ...
+Emitted 'error' event on EventEmitter instance ...
+```
+
+As a solution we need just to attach a listener:
+```js
+emitter.on("error", (error) => {
+  console.error("Emitter failed:", error);
+});
+```
+
+An unhandled rejection can also stop the process:
+```text
+Error: boom
+    at ...
+```
+
+As a solution we can catch it where the async work is started:
+```
+doWork().catch((error) => {
+  console.error("Work failed:", error);
+});
+```
+
+The server already handles socket errors and logs match-log pipeline failures.
