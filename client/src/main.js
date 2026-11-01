@@ -32,7 +32,7 @@ function startLobby() {
   initLobbyRendering(lobby);
 
   lobby.addEventListener('joined', (event) => {
-    const { room, playerName } = event.detail;
+    const { room, playerName, socket } = event.detail;
     console.log(`Player ${playerName} join to room`, room.name);
 
     lobbyScreen.style.display = 'none';
@@ -40,7 +40,7 @@ function startLobby() {
     lobbyScreen.style.display = 'none';
     document.getElementById('loading-screen').style.display = 'flex';
 
-    initGame(room, playerName);
+    initGame(room, playerName, socket);
   });
 
   lobby.startAutoRefresh();

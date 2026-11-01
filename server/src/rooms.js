@@ -1,14 +1,19 @@
 import { EventEmitter } from "node:events";
 
 export class Room extends EventEmitter {
-  constructor(id, name) {
+  constructor(id, name, maxPlayers) {
     super();
     this.id = id;
     this.name = name;
+    this.maxPlayers = maxPlayers;
     this.players = new Map();
   }
 
   addPlayer(socket, player) {
+    if (this.players.size >= this.maxPlayers) {
+      throw new Error("Room is full");
+    }
+    
     this.players.set(socket, player);
     this.emit("join", { socket, player });
     this.broadcastRoster();
@@ -50,9 +55,9 @@ export class RoomManager { // to control Room List
     this.rooms = new Map();
   }
 
-  createRoom(name) {
+  createRoom(name, maxPlayers = 4) {
     const id = Math.random().toString(36).substring(2, 9);
-    const room = new Room(id, name || `Room ${id}`);
+    const room = new Room(id, name || `Room ${id}`, maxPlayers);
 
     room.on("empty", (r) => {
       this.rooms.delete(r.id);

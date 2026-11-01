@@ -82,7 +82,7 @@ class Lobby extends EventTarget {
     }
   }
 
-  join(roomId, playerName) {
+join(roomId, playerName) {
     const selectedRoom = this.#rooms.find((r) => r.id == roomId);
 
     if (!selectedRoom) {
@@ -97,17 +97,38 @@ class Lobby extends EventTarget {
       throw new Error('Please enter player name');
     }
 
-    selectedRoom.currentPlayers++; // just in memory
-    this.stopAutoRefresh(); // stop http before exit
+    this.stopAutoRefresh();
 
-    this.dispatchEvent(
-      new CustomEvent('joined', {
-        detail: {
-          room: selectedRoom,
-          playerName: playerName.trim(),
-        },
-      })
-    );
+    const wsUrl = `$https//${window.location.host}`;
+    
+    const socket = new WebSocket(wsUrl);
+
+    socket.addEventListener('open', () => {
+      socket.send(
+        JSON.stringify({
+          type: 'join',
+          room: selectedRoom.id,
+          name: playerName.trim(),
+        })
+      );
+
+      this.dispatchEvent(
+        new CustomEvent('joined', {
+          detail: {
+            room: selectedRoom,
+            playerName: playerName.trim(),
+            socket: socket, // websocket
+          },
+        })
+      );
+    });
+
+    socket.addEventListener('error', (err) => {
+      console.error('WebSocket connection error:', err);
+      this.dispatchEvent(
+        new CustomEvent('error', { detail: { message: 'Failed to connect to game server' } })
+      );
+    });
   }
 }
 
