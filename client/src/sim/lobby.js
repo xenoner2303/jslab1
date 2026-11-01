@@ -99,7 +99,8 @@ join(roomId, playerName) {
 
     this.stopAutoRefresh();
 
-    const wsUrl = `$https//${window.location.host}`;
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${wsProtocol}//${window.location.host}`;
     
     const socket = new WebSocket(wsUrl);
 

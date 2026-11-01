@@ -5,7 +5,7 @@ import { Ship } from './sim/ship.js';
 import { World } from './sim/world.js';
 import { Vector2 } from './sim/vector.js';
 import { wrap } from './sim/arena.js';
-import { loadAll } from '../assets/loader.js';
+import { loadAll } from '../public/assets/loader.js';
 import { initAudio } from './sim/audio.js';
 import { initHud } from './sim/hud.js';
 import { Lobby } from './sim/lobby.js';
