@@ -14,21 +14,21 @@ export class GameConnection extends EventTarget {
 
   connect() {
     this.#isIntentionalClose = false;
-    this.#socket = new WebSocket(this.#url);
+    const socket = new WebSocket(this.#url);
+    this.#socket = socket;
 
-    this.#socket.addEventListener('open', () => {
+    socket.addEventListener('open', () => {
       console.log('WebSocket connected yoooou');
       this.#reconnectAttempts = 0;
+      this.dispatchEvent(new CustomEvent('open'));
 
       while (this.#sendQueue.length > 0) {
         const payload = this.#sendQueue.shift();
-        this.#socket.send(JSON.stringify(payload));
+        socket.send(JSON.stringify(payload));
       }
-
-      this.dispatchEvent(new CustomEvent('open'));
     });
 
-    this.#socket.addEventListener('message', (event) => {
+    socket.addEventListener('message', (event) => {
       try {
         const data = JSON.parse(event.data);
 
@@ -40,7 +40,7 @@ export class GameConnection extends EventTarget {
       }
     });
 
-    this.#socket.addEventListener('close', (event) => {
+    socket.addEventListener('close', (event) => {
       console.log(`WebSocket closed (code: ${event.code})`);
       this.dispatchEvent(new CustomEvent('close', { detail: event }));
 
@@ -49,22 +49,23 @@ export class GameConnection extends EventTarget {
       }
     });
 
-    this.#socket.addEventListener('error', (error) => {
+    socket.addEventListener('error', (error) => {
       console.error('WebSocket error:', error);
       this.dispatchEvent(new CustomEvent('error', { detail: error }));
     });
   }
 
-  send(data) {
+  send(data, { queueIfDisconnected = true } = {}) {
     if (this.#socket && this.#socket.readyState === WebSocket.OPEN) {
       this.#socket.send(JSON.stringify(data));
-    } else {
+    } else if (queueIfDisconnected && !this.#isIntentionalClose) {
       this.#sendQueue.push(data);
     }
   }
 
   close() {
     this.#isIntentionalClose = true;
+    this.#sendQueue = [];
     if (this.#reconnectTimeout) {
       clearTimeout(this.#reconnectTimeout);
     }

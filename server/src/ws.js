@@ -1,4 +1,4 @@
-import { WebSocketServer } from "ws";
+import { WebSocket, WebSocketServer } from "ws";
 import { validateMessage, MessageTypes } from "./protocol.js";
 
 export function setupWebSocket(httpServer, roomManager) {
@@ -12,22 +12,27 @@ export function setupWebSocket(httpServer, roomManager) {
       console.error("Socket error encountered:", err);
     });
 
-    let currentRoom = null;
-    let currentPlayer = null;
-    let isAlive = true;
+    socket.data = { player: null, room: null };
+    socket.missedPongs = 0;
 
     socket.on("pong", () => {
-      isAlive = true;
+      socket.missedPongs = 0;
     });
 
     const joinTimeout = setTimeout(() => { // 5 sec waiting for join message
-      if (!currentRoom) {
+      if (!socket.data.room) {
         console.log("Connection closed: Join timeout exceeded (5s)");
         socket.close(4001, "Join timeout");
       }
     }, 5000);
 
-    socket.on("message", (data) => {
+    socket.on("message", (data, isBinary) => {
+      if (isBinary) {
+        console.warn("Validation failed: binary WebSocket messages are not supported");
+        socket.close(4002, "Text messages required");
+        return;
+      }
+
       const validation = validateMessage(data);
       if (!validation.valid) {
         console.warn("Validation failed:", validation.error);
@@ -38,70 +43,86 @@ export function setupWebSocket(httpServer, roomManager) {
       const msg = validation.msg;
 
       if (msg.type === MessageTypes.JOIN) {
-        clearTimeout(joinTimeout);
-        const roomId = msg.room || "default";
-        const playerName = String(msg.name || "Player").slice(0, 30);
-
-        let room = roomManager.getRoom(roomId);
-        if (!room) {
-          room = roomManager.createRoom(msg.roomName || roomId);
+        const { room: roomId, name: playerName } = msg;
+        if (socket.data.room) {
+          if (socket.data.room.id !== roomId) {
+            console.warn("Validation failed: socket attempted to join multiple rooms");
+            socket.close(4002, "Already joined to a room");
+            return;
+          }
+          socket.send(
+            JSON.stringify({
+              type: MessageTypes.JOINED,
+              playerId: socket.data.player.id,
+              state: socket.data.player.state,
+            })
+          );
+          return;
         }
 
-        currentRoom = room;
-        currentPlayer = {
+        clearTimeout(joinTimeout);
+        const room = roomManager.getRoom(roomId);
+        if (!room) {
+          console.warn(`Join rejected: room '${roomId}' does not exist`);
+          socket.close(4004, "Room not found");
+          return;
+        }
+
+        const player = {
           id: Math.random().toString(36).substring(2, 9),
-          name: playerName,
+          name: playerName.trim(),
         };
 
-        room.addPlayer(socket, currentPlayer);
+        try {
+          room.addPlayer(socket, player);
+        } catch (error) {
+          console.warn(`Join rejected for room '${roomId}':`, error.message);
+          socket.close(4005, "Room is full");
+          return;
+        }
+
+        socket.data = { player, room };
         socket.send(
           JSON.stringify({
-            type: "joined",
-            playerId: currentPlayer.id,
-            state: currentPlayer.state,
+            type: MessageTypes.JOINED,
+            playerId: player.id,
+            state: player.state,
           })
         );
         console.log(`Player '${playerName}' joined room ${room.id}`);
         return;
       }
 
-      if (!currentRoom || !currentPlayer) {
+      const { player, room } = socket.data;
+      if (!room || !player) {
+        console.warn(`Message '${msg.type}' received before joining a room`);
         socket.close(4003, "Not joined to any room");
         return;
       }
 
-      if (msg.type == MessageTypes.CHAT) { // for chat
-        const text = String(msg.text || "").trim().slice(0, 256);
-        if (text.length > 0) {
-          currentRoom.broadcast({
-            type: MessageTypes.CHAT,
-            sender: currentPlayer.name,
-            text,
-            time: Date.now(),
-          });
-        }
+      if (msg.type === MessageTypes.CHAT) {
+        room.emit("chat", {
+          player,
+          text: msg.text.trim(),
+          time: Date.now(),
+        });
         return;
       }
 
       if (msg.type === MessageTypes.STATE) {
-        const { x, y, angle, thrust, alive } = msg;
-        if (
-          !Number.isFinite(x) ||
-          !Number.isFinite(y) ||
-          !Number.isFinite(angle) ||
-          !Number.isFinite(thrust) ||
-          typeof alive !== "boolean"
-        ) {
-          return;
-        }
-
-        currentPlayer.state = { x, y, angle, thrust, alive };
-        currentRoom.broadcast(
+        player.state = {
+          x: msg.x,
+          y: msg.y,
+          angle: msg.angle,
+          thrust: msg.thrust,
+          alive: msg.alive,
+        };
+        room.broadcast(
           {
             type: MessageTypes.STATE,
-            playerId: currentPlayer.id,
-            playerName: currentPlayer.name,
-            ...currentPlayer.state,
+            playerId: player.id,
+            playerName: player.name,
+            ...player.state,
           },
           socket
         );
@@ -110,19 +131,24 @@ export function setupWebSocket(httpServer, roomManager) {
 
     socket.on("close", () => {
       clearTimeout(joinTimeout);
-      if (currentRoom && currentPlayer) {
-        currentRoom.removePlayer(socket);
-        console.log(`Player '${currentPlayer.name}' left room ${currentRoom.id}`);
+      const { player, room } = socket.data;
+      if (room && player) {
+        room.removePlayer(socket);
+        console.log(`Player '${player.name}' left room ${room.id}`);
+        socket.data = { player: null, room: null };
       }
     });
   });
 
   const heartbeatInterval = setInterval(() => { // ping every 15 second with 2 pong timeout
     wss.clients.forEach((socket) => {
-      if (socket.isAlive == false) {
+      if (socket.readyState !== WebSocket.OPEN) {
+        return;
+      }
+      if (socket.missedPongs >= 2) {
         return socket.terminate();
       }
-      socket.isAlive = false;
+      socket.missedPongs += 1;
       socket.ping();
     });
   }, 15000);

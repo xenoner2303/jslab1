@@ -37,16 +37,15 @@ function startLobby() {
 
     lobbyScreen.style.display = 'none';
 
-    lobbyScreen.style.display = 'none';
     document.getElementById('loading-screen').style.display = 'flex';
 
-    initGame(room, playerName, connection);
+    initGame(room, playerName, connection, event.detail);
   });
 
   lobby.startAutoRefresh();
 }
 
-async function initGame(room, playerName, connection) {
+async function initGame(room, playerName, connection, joinData) {
   const canvasConfig = configureCanvas(window);
 
   const loadingScreen = document.getElementById('loading-screen');
@@ -55,23 +54,59 @@ async function initGame(room, playerName, connection) {
   const startBtn = document.getElementById('start-btn');
   const retryBtn = document.getElementById('retry-btn');
   const cancelBtn = document.getElementById('cancel-btn');
+  const chatPanel = document.getElementById('chat-panel');
+  const chatMessages = document.getElementById('chat-messages');
+  const chatForm = document.getElementById('chat-form');
+  const chatInput = document.getElementById('chat-input');
   const remotePlayers = new Map();
-  let localPlayerId = null;
-  let localSpawnState = null;
+  let localPlayerId = joinData.playerId;
+  let localSpawnState = joinData.spawnState;
 
-  connection.addEventListener('roster', (event) => {
+  function updateRoster(players) {
     remotePlayers.clear();
-    for (const player of event.detail.players) {
+    for (const player of players) {
       if (player.id !== localPlayerId && player.state) {
         remotePlayers.set(player.id, { ...player.state, playerName: player.name });
       }
     }
+  }
+
+  updateRoster(joinData.roster);
+
+  connection.addEventListener('roster', (event) => {
+    updateRoster(event.detail.players);
   });
 
   connection.addEventListener('joined', (event) => {
     localPlayerId = event.detail.playerId;
     localSpawnState = event.detail.state;
     remotePlayers.delete(localPlayerId);
+  });
+
+  connection.addEventListener('chat', (event) => {
+    const message = document.createElement('p');
+    message.textContent = `${event.detail.sender}: ${event.detail.text}`;
+    chatMessages.appendChild(message);
+    while (chatMessages.childElementCount > 100) {
+      chatMessages.firstElementChild.remove();
+    }
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+  });
+
+  connection.addEventListener('maxreconnect', () => {
+    const message = document.createElement('p');
+    message.textContent = 'З’єднання з сервером втрачено.';
+    chatMessages.appendChild(message);
+    chatPanel.style.display = 'flex';
+  });
+
+  chatForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const text = chatInput.value.trim();
+    if (!text) return;
+
+    connection.send({ type: 'chat', text });
+    chatInput.value = '';
   });
 
   connection.addEventListener('state', (event) => {
@@ -125,6 +160,7 @@ async function initGame(room, playerName, connection) {
       const arenaWidth = room.arenaConfig.width;
       const arenaHeight = room.arenaConfig.height;
       const world = new World(arenaWidth, arenaHeight);
+      chatPanel.style.display = 'flex';
 
       world.addEventListener('shoot', () => audio.playShoot());
       world.addEventListener('exploded', () => audio.playExplosion());
@@ -233,7 +269,7 @@ function startGame(
         angle: mainShip.angle,
         thrust: mainShip.thrust,
         alive: mainShip.alive,
-      });
+      }, { queueIfDisconnected: false });
     }
 
     input.clearJustPressed();
