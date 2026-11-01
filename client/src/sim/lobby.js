@@ -103,10 +103,11 @@ class Lobby extends EventTarget {
     this.stopAutoRefresh(); 
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}`;
+    const wsUrl = `${protocol}//${window.location.host}/ws`;
     
     const connection = new GameConnection(wsUrl); // create a new GameConnection instance
     let hasJoined = false;
+    let latestRoster = [];
 
     connection.addEventListener('open', () => {
       connection.send({
@@ -114,7 +115,13 @@ class Lobby extends EventTarget {
         room: selectedRoom.id,
         name: playerName.trim(),
       });
+    });
 
+    connection.addEventListener('roster', (event) => {
+      latestRoster = event.detail.players;
+    });
+
+    connection.addEventListener('joined', (event) => {
       if (hasJoined) {
         return;
       }
@@ -126,15 +133,43 @@ class Lobby extends EventTarget {
             room: selectedRoom,
             playerName: playerName.trim(),
             connection,
+            playerId: event.detail.playerId,
+            spawnState: event.detail.state,
+            roster: latestRoster,
           },
         })
       );
     });
 
+    connection.addEventListener('close', (event) => {
+      if (hasJoined) return;
+
+      const { code } = event.detail;
+      const messages = {
+        4001: 'Час очікування входу вичерпано',
+        4004: 'Кімнату не знайдено',
+        4005: 'У кімнаті більше немає місць',
+      };
+      if (messages[code]) {
+        connection.close();
+        this.dispatchEvent(
+          new CustomEvent('error', { detail: { message: messages[code] } })
+        );
+      }
+    });
+
     connection.addEventListener('error', () => {
       this.dispatchEvent(
         new CustomEvent('error', {
-          detail: { message: 'AHAHAH he cannot join to server' },
+          detail: { message: 'Не вдалося підключитися до ігрового сервера' },
+        })
+      );
+    });
+
+    connection.addEventListener('maxreconnect', () => {
+      this.dispatchEvent(
+        new CustomEvent('error', {
+          detail: { message: 'Не вдалося відновити з’єднання з сервером' },
         })
       );
     });

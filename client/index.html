@@ -18,6 +18,22 @@
       <div id="score"></div>
     </div>
 
+    <section id="chat-panel" aria-label="Room chat">
+      <h2>Чат кімнати</h2>
+      <div id="chat-messages" role="log" aria-live="polite"></div>
+      <form id="chat-form">
+        <label class="visually-hidden" for="chat-input">Повідомлення</label>
+        <input
+          id="chat-input"
+          type="text"
+          maxlength="256"
+          autocomplete="off"
+          placeholder="Напишіть повідомлення..."
+        />
+        <button type="submit">Надіслати</button>
+      </form>
+    </section>
+
     <div id="loading-screen">
       <h2 id="loading-text">Натисніть для старту</h2>
 
