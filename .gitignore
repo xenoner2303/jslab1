@@ -1,2 +1,2 @@
 node_modules/
-server/src/log/*.log
+server/src/log/*.ndjson
