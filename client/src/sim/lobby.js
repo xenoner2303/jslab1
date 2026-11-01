@@ -1,4 +1,5 @@
 import { lobbyRefresh } from '../../config/settings.js';
+import { GameConnection } from '../connection.js';
 
 class Lobby extends EventTarget {
   #rooms = [];
@@ -82,7 +83,7 @@ class Lobby extends EventTarget {
     }
   }
 
-join(roomId, playerName) {
+  join(roomId, playerName) {
     const selectedRoom = this.#rooms.find((r) => r.id == roomId);
 
     if (!selectedRoom) {
@@ -97,32 +98,32 @@ join(roomId, playerName) {
       throw new Error('Please enter player name');
     }
 
-    this.stopAutoRefresh();
+    this.stopAutoRefresh(); 
 
-    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${wsProtocol}//${window.location.host}`;
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}`;
     
-    const socket = new WebSocket(wsUrl);
+    const connection = new GameConnection(wsUrl); // create a new GameConnection instance
 
-    socket.addEventListener('open', () => {
-      socket.send(
-        JSON.stringify({
-          type: 'join',
-          room: selectedRoom.id,
-          name: playerName.trim(),
-        })
-      );
-
-      this.dispatchEvent(
-        new CustomEvent('joined', {
-          detail: {
-            room: selectedRoom,
-            playerName: playerName.trim(),
-            socket: socket, // websocket
-          },
-        })
-      );
+    connection.addEventListener('open', () => {
+      connection.send({
+        type: 'join',
+        room: selectedRoom.id,
+        name: playerName.trim(),
+      });
     });
+
+    connection.connect();
+
+    this.dispatchEvent(
+      new CustomEvent('joined', {
+        detail: {
+          room: selectedRoom,
+          playerName: playerName.trim(),
+          connection: connection,
+        },
+      })
+    );
 
     socket.addEventListener('error', (err) => {
       console.error('WebSocket connection error:', err);
