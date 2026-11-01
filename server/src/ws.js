@@ -54,6 +54,13 @@ export function setupWebSocket(httpServer, roomManager) {
         };
 
         room.addPlayer(socket, currentPlayer);
+        socket.send(
+          JSON.stringify({
+            type: "joined",
+            playerId: currentPlayer.id,
+            state: currentPlayer.state,
+          })
+        );
         console.log(`Player '${playerName}' joined room ${room.id}`);
         return;
       }
@@ -73,6 +80,31 @@ export function setupWebSocket(httpServer, roomManager) {
             time: Date.now(),
           });
         }
+        return;
+      }
+
+      if (msg.type === MessageTypes.STATE) {
+        const { x, y, angle, thrust, alive } = msg;
+        if (
+          !Number.isFinite(x) ||
+          !Number.isFinite(y) ||
+          !Number.isFinite(angle) ||
+          !Number.isFinite(thrust) ||
+          typeof alive !== "boolean"
+        ) {
+          return;
+        }
+
+        currentPlayer.state = { x, y, angle, thrust, alive };
+        currentRoom.broadcast(
+          {
+            type: MessageTypes.STATE,
+            playerId: currentPlayer.id,
+            playerName: currentPlayer.name,
+            ...currentPlayer.state,
+          },
+          socket
+        );
       }
     });
 

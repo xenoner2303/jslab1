@@ -32,7 +32,7 @@ function startLobby() {
   initLobbyRendering(lobby);
 
   lobby.addEventListener('joined', (event) => {
-    const { room, playerName, socket } = event.detail;
+    const { room, playerName, connection } = event.detail;
     console.log(`Player ${playerName} join to room`, room.name);
 
     lobbyScreen.style.display = 'none';
@@ -40,13 +40,13 @@ function startLobby() {
     lobbyScreen.style.display = 'none';
     document.getElementById('loading-screen').style.display = 'flex';
 
-    initGame(room, playerName, socket);
+    initGame(room, playerName, connection);
   });
 
   lobby.startAutoRefresh();
 }
 
-async function initGame(room, playerName) {
+async function initGame(room, playerName, connection) {
   const canvasConfig = configureCanvas(window);
 
   const loadingScreen = document.getElementById('loading-screen');
@@ -55,6 +55,31 @@ async function initGame(room, playerName) {
   const startBtn = document.getElementById('start-btn');
   const retryBtn = document.getElementById('retry-btn');
   const cancelBtn = document.getElementById('cancel-btn');
+  const remotePlayers = new Map();
+  let localPlayerId = null;
+  let localSpawnState = null;
+
+  connection.addEventListener('roster', (event) => {
+    remotePlayers.clear();
+    for (const player of event.detail.players) {
+      if (player.id !== localPlayerId && player.state) {
+        remotePlayers.set(player.id, { ...player.state, playerName: player.name });
+      }
+    }
+  });
+
+  connection.addEventListener('joined', (event) => {
+    localPlayerId = event.detail.playerId;
+    localSpawnState = event.detail.state;
+    remotePlayers.delete(localPlayerId);
+  });
+
+  connection.addEventListener('state', (event) => {
+    const { playerId, playerName, ...state } = event.detail;
+    if (playerId !== localPlayerId) {
+      remotePlayers.set(playerId, { ...state, playerName });
+    }
+  });
 
   let audioCtx = null; // for browser audio
 
@@ -122,7 +147,10 @@ async function initGame(room, playerName) {
         canvasConfig,
         arenaWidth,
         arenaHeight,
-        playerName
+        playerName,
+        connection,
+        remotePlayers,
+        () => localSpawnState
       );
     } catch (error) {
       cancelBtn.style.display = 'none';
@@ -153,11 +181,18 @@ function startGame(
   canvasConfig,
   arenaWidth,
   arenaHeight,
-  playerName
+  playerName,
+  connection,
+  remotePlayers,
+  getSpawnState
 ) {
   const input = createInput(window);
 
-  const startMainShipPos = new Vector2(arenaWidth / 2, arenaHeight / 2);
+  const spawnState = getSpawnState();
+  const startMainShipPos = new Vector2(
+    spawnState?.x ?? arenaWidth / 2,
+    spawnState?.y ?? arenaHeight / 2
+  );
 
   const mainShipRadius = Math.sqrt(shipWidth ** 2 + shipHeight ** 2) / 2; // rectangle diag formula
 
@@ -165,7 +200,7 @@ function startGame(
     startMainShipPos,
     new Vector2(0, 0),
     mainShipRadius,
-    0,
+    spawnState?.angle ?? 0,
     input,
     playerName
   );
@@ -176,6 +211,7 @@ function startGame(
     angle: mainShip.angle,
     thrust: mainShip.thrust,
   }; // previous ship state, remove shallow copy cause equal vector2 reference
+  let stateSendTimer = 0;
 
   function simulate(dt) {
     previous = {
@@ -186,6 +222,19 @@ function startGame(
 
     world.step(dt, input);
     wrap(mainShip, arenaWidth, arenaHeight);
+
+    stateSendTimer += dt;
+    if (stateSendTimer >= 1 / 20) {
+      stateSendTimer = 0;
+      connection.send({
+        type: 'state',
+        x: mainShip.pos.x,
+        y: mainShip.pos.y,
+        angle: mainShip.angle,
+        thrust: mainShip.thrust,
+        alive: mainShip.alive,
+      });
+    }
 
     input.clearJustPressed();
   }
@@ -228,6 +277,22 @@ function startGame(
 
     drawGrid(ctx, window.innerWidth, window.innerHeight);
     if (mainShip.alive) drawShip(ctx, interpolatedShip, assets.ship);
+    for (const player of remotePlayers.values()) {
+      if (player.alive !== false) {
+        drawShip(
+          ctx,
+          {
+            x: player.x,
+            y: player.y,
+            angle: player.angle,
+            thrust: player.thrust,
+            angleChange: 0,
+            playerName: player.playerName,
+          },
+          assets.ship
+        );
+      }
+    }
     if (mainShip.alive && mainShip.hasShield) {
       drawBarrierShield(ctx, mainShip);
     }

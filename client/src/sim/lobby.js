@@ -42,7 +42,9 @@ class Lobby extends EventTarget {
       }
 
       this.dispatchEvent(
-        new CustomEvent('roomsupdated', { detail: { rooms: this.#rooms } })
+        new CustomEvent('roomsupdated', {
+          detail: { rooms: this.#rooms },
+        })
       );
     } catch (error) {
       if (error.name === 'AbortError') {
@@ -90,7 +92,7 @@ class Lobby extends EventTarget {
       throw new Error('The selected room was not found');
     }
 
-    if (selectedRoom.currentPlayers == selectedRoom.maxPlayers) {
+    if (selectedRoom.currentPlayers >= selectedRoom.maxPlayers) {
       throw new Error('The room is full');
     }
 
@@ -104,6 +106,7 @@ class Lobby extends EventTarget {
     const wsUrl = `${protocol}//${window.location.host}`;
     
     const connection = new GameConnection(wsUrl); // create a new GameConnection instance
+    let hasJoined = false;
 
     connection.addEventListener('open', () => {
       connection.send({
@@ -111,26 +114,32 @@ class Lobby extends EventTarget {
         room: selectedRoom.id,
         name: playerName.trim(),
       });
+
+      if (hasJoined) {
+        return;
+      }
+      hasJoined = true;
+
+      this.dispatchEvent(
+        new CustomEvent('joined', {
+          detail: {
+            room: selectedRoom,
+            playerName: playerName.trim(),
+            connection,
+          },
+        })
+      );
+    });
+
+    connection.addEventListener('error', () => {
+      this.dispatchEvent(
+        new CustomEvent('error', {
+          detail: { message: 'AHAHAH he cannot join to server' },
+        })
+      );
     });
 
     connection.connect();
-
-    this.dispatchEvent(
-      new CustomEvent('joined', {
-        detail: {
-          room: selectedRoom,
-          playerName: playerName.trim(),
-          connection: connection,
-        },
-      })
-    );
-
-    socket.addEventListener('error', (err) => {
-      console.error('WebSocket connection error:', err);
-      this.dispatchEvent(
-        new CustomEvent('error', { detail: { message: 'Failed to connect to game server' } })
-      );
-    });
   }
 }
 

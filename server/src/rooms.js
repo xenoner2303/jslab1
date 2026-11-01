@@ -13,7 +13,15 @@ export class Room extends EventEmitter {
     if (this.players.size >= this.maxPlayers) {
       throw new Error("Room is full");
     }
-    
+
+    const spawnAngle = (2 * Math.PI * this.players.size) / this.maxPlayers;
+    player.state = {
+      x: 600 + Math.cos(spawnAngle) * 220,
+      y: 400 + Math.sin(spawnAngle) * 160,
+      angle: spawnAngle + Math.PI / 2,
+      thrust: 0,
+      alive: true,
+    };
     this.players.set(socket, player);
     this.emit("join", { socket, player });
     this.broadcastRoster();
@@ -45,6 +53,7 @@ export class Room extends EventEmitter {
     const roster = Array.from(this.players.values()).map((p) => ({
       id: p.id,
       name: p.name,
+      state: p.state,
     }));
     this.broadcast({ type: "roster", players: roster });
   }

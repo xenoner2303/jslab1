@@ -142,7 +142,8 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
+  overflow-y: auto;
   background: rgba(15, 15, 25, 0.95);
   color: #ffffff;
   padding: 20px;
@@ -216,8 +217,12 @@ body {
   font-size: 18px;
 }
 
+.room-info {
+  min-width: 0;
+}
+
 .room-card p {
-  margin: 0;
+  margin: 4px 0 0;
   font-size: 14px;
   color: #ccc;
 }
@@ -236,8 +241,70 @@ body {
   background: #43a047;
 }
 
+.join-btn:disabled {
+  background: #666;
+  cursor: not-allowed;
+}
+
 #lobby-error {
   color: #ff5252;
   font-size: 14px;
   min-height: 20px;
+}
+
+.create-room-box {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  width: min(400px, 90vw);
+  margin-bottom: 20px;
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.create-room-box h3 {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.create-room-box label {
+  align-self: center;
+}
+
+.create-room-box input {
+  min-width: 0;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+#new-room-max {
+  width: 70px;
+}
+
+#create-room-btn {
+  grid-column: 1 / -1;
+  padding: 10px 15px;
+  border: 0;
+  border-radius: 4px;
+  background: #4caf50;
+  color: #ffffff;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+#create-room-btn:hover {
+  background: #43a047;
+}
+
+@media (max-width: 480px) {
+  #lobby-controls {
+    flex-direction: column;
+    width: min(400px, 90vw);
+  }
+
+  #player-name-input {
+    min-width: 0;
+  }
 }

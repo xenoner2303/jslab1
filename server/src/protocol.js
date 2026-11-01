@@ -2,6 +2,7 @@ export const MessageTypes = {
   JOIN: "join",
   CHAT: "chat",
   ROSTER: "roster",
+  STATE: "state",
 };
 
 export function validateMessage(rawData) {

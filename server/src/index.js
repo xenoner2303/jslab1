@@ -58,7 +58,6 @@ const server = http.createServer(async (req, res) => {
             currentPlayers: r.players.size,
             arenaConfig: { width: 1200, height: 800 }
         }));
-
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ rooms: roomList }));
         return;
