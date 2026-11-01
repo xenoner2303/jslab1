@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <title>JS Lab 1</title>
+    <script type="module" crossorigin src="/assets/index-W5x2d3wJ.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-CbiXn2SO.css">
+  </head>
+  <body>
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="kill-msg"></div>
+
+    <div id="hud">
+      <div id="steps"></div>
+      <div id="fps"></div>
+      <div id="frameTime"></div>
+      <div id="score"></div>
+    </div>
+
+    <div id="loading-screen">
+      <h2 id="loading-text">Натисніть для старту</h2>
+
+      <div id="progress-container">
+        <div id="progress-bar"></div>
+      </div>
+
+      <button id="cancel-btn" type="button">Cancel</button>
+      <button id="retry-btn" type="button">Спробувати ще раз</button>
+      <button id="start-btn" type="button">Почати гру</button>
+    </div>
+
+    <div id="lobby-screen">
+      <h2>Multiplayer Lobby</h2>
+
+      <div id="lobby-controls">
+        <input
+          type="text"
+          id="player-name-input"
+          placeholder="Enter your name..."
+        />
+        <button id="refresh-rooms-btn" type="button">Refresh Rooms</button>
+      </div>
+
+      <div id="rooms-container"></div>
+
+      <div id="lobby-error"></div>
+    </div>
+  </body>
+</html>

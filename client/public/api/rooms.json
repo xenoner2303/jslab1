@@ -1,0 +1,24 @@
+{
+  "rooms": [
+    {
+      "id": "room1",
+      "name": "room1",
+      "maxPlayers": 4,
+      "currentPlayers": 0,
+      "arenaConfig": {
+        "width": 1200,
+        "height": 800
+      }
+    },
+    {
+      "id": "room22",
+      "name": "room2",
+      "maxPlayers": 2,
+      "currentPlayers": 0,
+      "arenaConfig": {
+        "width": 1600,
+        "height": 1200
+      }
+    }
+  ]
+}
