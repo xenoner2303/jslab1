@@ -65,6 +65,17 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (req.method === "GET" && pathname === "/api/slow") {
+      const start = process.hrtime.bigint();
+      const delayNanoseconds = 3_000_000_000n;
+      while (process.hrtime.bigint() - start < delayNanoseconds) {
+      }
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ blockedForMs: 3000 }));
+      return;
+    }
+
     if (req.method === "GET" && pathname === "/api/rooms") {
         const roomList = Array.from(roomManager.rooms.values()).map((r) => ({
             id: r.id,

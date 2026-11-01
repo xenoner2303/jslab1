@@ -1,10 +1,12 @@
 import { WebSocket, WebSocketServer } from "ws";
+import { performance } from "node:perf_hooks";
 import { validateMessage, MessageTypes } from "./protocol.js";
+import { config } from "./config.js";
 
 export function setupWebSocket(httpServer, roomManager) {
-  const wss = new WebSocketServer({ 
-    server: httpServer, 
-    maxPayload: 1024 * 64, // protect against large payloads
+  const wss = new WebSocketServer({
+    server: httpServer,
+    maxPayload: config.limits.maxPayloadBytes,
   });
 
   wss.on("connection", (socket, req) => {
@@ -14,6 +16,11 @@ export function setupWebSocket(httpServer, roomManager) {
 
     socket.data = { player: null, room: null };
     socket.missedPongs = 0;
+    socket.rateLimit = {
+      tokens: config.limits.messageBurst,
+      lastRefillAt: performance.now(),
+      exceeded: false,
+    };
 
     socket.on("pong", () => {
       socket.missedPongs = 0;
@@ -27,6 +34,27 @@ export function setupWebSocket(httpServer, roomManager) {
     }, 5000);
 
     socket.on("message", (data, isBinary) => {
+      if (socket.rateLimit.exceeded) {
+        return;
+      }
+
+      const now = performance.now();
+      const elapsedSeconds = (now - socket.rateLimit.lastRefillAt) / 1000;
+      socket.rateLimit.tokens = Math.min(
+        config.limits.messageBurst,
+        socket.rateLimit.tokens +
+          elapsedSeconds * config.limits.messagesPerSecond
+      );
+      socket.rateLimit.lastRefillAt = now;
+
+      if (socket.rateLimit.tokens < 1) {
+        socket.rateLimit.exceeded = true;
+        console.warn("Connection closed: WebSocket message rate limit exceeded");
+        socket.close(4008, "Message rate limit exceeded");
+        return;
+      }
+      socket.rateLimit.tokens -= 1;
+
       if (isBinary) {
         console.warn("Validation failed: binary WebSocket messages are not supported");
         socket.close(4002, "Text messages required");

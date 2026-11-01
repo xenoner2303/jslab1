@@ -1,9 +1,20 @@
 import { EventEmitter } from "node:events";
 import { MatchLog } from "./log/matchlog.js";
+import { config } from "./config.js";
 
 export class Room extends EventEmitter {
   constructor(id, name, maxPlayers, logDir) {
     super();
+    if (
+      !Number.isInteger(maxPlayers) ||
+      maxPlayers < 1 ||
+      maxPlayers > config.limits.maxPlayersPerRoom
+    ) {
+      throw new RangeError(
+        `maxPlayers must be an integer between 1 and ${config.limits.maxPlayersPerRoom}`
+      );
+    }
+
     this.id = id;
     this.name = name;
     this.maxPlayers = maxPlayers;
@@ -75,9 +86,18 @@ export class Room extends EventEmitter {
   broadcast(data, excludeSocket = null) {
     const payload = JSON.stringify(data);
     for (const [socket] of this.players) {
-      if (socket !== excludeSocket && socket.readyState === 1) { // WebSocket.OPEN === 1
-        socket.send(payload);
+      if (socket === excludeSocket || socket.readyState !== 1) {
+        continue;
       }
+
+      if (
+        data.type === "state" &&
+        socket.bufferedAmount > config.limits.maxBufferedBytes
+      ) {
+        continue;
+      }
+
+      socket.send(payload);
     }
   }
 
@@ -99,6 +119,12 @@ export class RoomManager { // to control Room List
   }
 
   createRoom(name, maxPlayers = 4) {
+    if (this.rooms.size >= config.limits.maxRooms) {
+      const error = new Error("Server room limit reached");
+      error.statusCode = 503;
+      throw error;
+    }
+
     const id = Math.random().toString(36).substring(2, 9);
     const room = new Room(id, name || `Room ${id}`, maxPlayers, this.logDir);
     this.matchLogs.add(room.matchLog);
