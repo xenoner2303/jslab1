@@ -245,11 +245,17 @@ server.listen(config.port, config.host, () => {
   console.log(`Server running at http://${config.host}:${config.port}`);
 });
 
+const rssMetricsInterval = setInterval(() => {
+  const rssMemoryMB = process.memoryUsage().rss / 1024 / 1024;
+  console.log(`Server RSS Memory: ${rssMemoryMB.toFixed(2)} MB`);
+}, 1000);
+
 let isShuttingDown = false;
 
 async function shutdown(signal) {
   if (isShuttingDown) return;
   isShuttingDown = true;
+  clearInterval(rssMetricsInterval);
   console.log(`\nReceived ${signal}`);
 
   const forceCloseTimer = setTimeout(() => {
