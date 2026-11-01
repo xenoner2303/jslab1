@@ -9,6 +9,7 @@ const __dirname = path.dirname(__filename);
 const PUBLIC_DIR = path.resolve(__dirname, "../../client/dist");
 
 const rooms = new Map();
+const roomManager = new RoomManager();
 
 const MIME_TYPES = {
   ".html": "text/html; charset=UTF-8",
@@ -49,14 +50,17 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === "GET" && pathname === "/api/rooms") {
-      const roomList = Array.from(rooms.values()).map(r => ({
-        id: r.id,
-        name: r.name,
-        playersCount: r.players.size,
-      }));
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify(roomList));
-      return;
+        const roomList = Array.from(roomManager.rooms.values()).map((r) => ({
+            id: r.id,
+            name: r.name,
+            maxPlayers: 4, // або дефолтне значення з твого старого JSON
+            currentPlayers: r.players.size,
+            arenaConfig: { width: 1200, height: 800 }
+        }));
+
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ rooms: roomList }));
+        return;
     }
 
     if (req.method === "POST" && pathname === "/api/rooms") { // create room
@@ -123,6 +127,8 @@ const server = http.createServer(async (req, res) => {
     res.end(JSON.stringify({ error: "Internal Server Error" }));
   }
 });
+
+setupWebSocket(server, roomManager); // connect websocket to http server and room manager
 
 server.listen(config.port, config.host, () => {
   console.log(`Server running at http://${config.host}:${config.port}`);

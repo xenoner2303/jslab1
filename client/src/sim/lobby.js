@@ -26,7 +26,7 @@ class Lobby extends EventTarget {
         AbortSignal.timeout(3000),
       ]); // cancel http if either signal abort or timer
 
-      const response = await fetch('./api/rooms.json', { signal });
+      const response = await fetch('/api/rooms', { signal }); // swap source to /api/rooms for server-side room management
 
       if (!response.ok) {
         throw new Error(`HTTP error - ${response.status}`);
