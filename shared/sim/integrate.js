@@ -15,8 +15,6 @@ export function integrateShip(state, input, dt) {
     angle += ((angleSpeed * Math.PI) / 180) * dt;
   }
 
-  angle += (Math.random() - 0.5) * 0.05; // only for lr
-
   let thrust = state.thrust;
   if (input.thrust > 0) {
     thrust = Math.min(thrust + thrustIncrement * dt, maxThrust);

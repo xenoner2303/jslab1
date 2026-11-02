@@ -1,9 +1,10 @@
-1. з помилкою в гронозі в спільній фізиці integrate.js, де я додав випадкову зміну кута
+## 1. With a prediction error in the shared `integrate.js` physics, I added a random angle change. The ship had to keep correcting its direction.
 ```
-angle += (Math.random() - 0.5) * 0.05; // only for lr
+angle += (Math.random() - 0.5) * 0.05; // only for the lab
 ```
 
-[first]("./screenshots/angle_randomness.png")
+![first](./screenshots/angle_randomness.png)
 
-2. без рандому
-[second]("./screenshots/angle_norandomness.png")
+## 2. Without random changes
+
+![second](./screenshots/angle_norandomness.png)
