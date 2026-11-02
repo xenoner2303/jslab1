@@ -3,7 +3,7 @@ import { Entity } from './entity.js';
 import { Vector2 } from './vector.js';
 import { applyHoming } from './homing.js';
 import { bounce } from './arena.js';
-import { MiniRocket } from './miniRocket.js';
+import { MiniRocket, getMiniRocketLaunchState } from './miniRocket.js';
 import { entitiesCollision, checkSpot } from './collision.js';
 import { Explosion } from './explosion.js';
 import {
@@ -12,11 +12,8 @@ import {
   maxBliblieSpeed,
   bliblieHeight,
   bliblieWidth,
-  miniRocketSpeed,
   damageFromObjects,
   damageFromMiniRocket,
-  miniRocketHeight,
-  miniRocketWidth,
   shieldWidth,
   shieldHeight,
   bliblieScreamTimer,
@@ -195,20 +192,16 @@ class World extends EventTarget {
       if (entity.fireRequested) {
         entity.fireRequested = false;
 
-        const direction = Vector2.fromAngle(entity.angle); // for direction
-        const rocketRadius =
-          Math.sqrt(miniRocketWidth ** 2 + miniRocketHeight ** 2) / 2; // rectangle diag formula
-        const spawnDistance = entity.radius + rocketRadius + 2; // ro avoid collisison riocket iisue
-        const shipNose = entity.pos.add(direction.scale(spawnDistance)); // receive new Vector2
-        const rocketVelocity = direction.scale(miniRocketSpeed);
-
+        const launch = getMiniRocketLaunchState(entity);
         const miniRocket = new MiniRocket(
-          shipNose,
-          rocketVelocity,
-          rocketRadius,
-          entity.angle,
-          entity
+          launch.pos,
+          launch.vel,
+          launch.radius,
+          launch.angle,
+          entity,
+          entity.fireSequence
         );
+        entity.fireSequence = null;
         miniRocket.behaviors.push(applyHoming);
         this.spawn(miniRocket);
 

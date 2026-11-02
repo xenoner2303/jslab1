@@ -22,6 +22,7 @@ class Ship extends Entity {
     this.thrust = 0;
     this.input = input;
     this.fireRequested = false;
+    this.fireSequence = null;
     this.#hp = maxShipHp;
     this.score = 0;
     this.hasShield = false;
@@ -90,6 +91,7 @@ class Ship extends Entity {
 
     if (this.input.isJustPressed('Space')) {
       this.fireRequested = true;
+      this.fireSequence = this.input.consumeFireSequence();
     }
 
     if (this.input.isJustPressed('KeyA')) {

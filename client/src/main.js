@@ -5,7 +5,10 @@ import { initAudio } from '../../shared/sim/audio.js';
 import { initHud } from '../../shared/sim/hud.js';
 import { Lobby } from '../../shared/sim/lobby.js';
 import { initLobbyRendering } from '../../shared/sim/lobbyRendering.js';
+import { getMiniRocketLaunchState } from '../../shared/sim/miniRocket.js';
 import { createInputMessage } from '../../shared/protocol/messages.js';
+import { rocketTtl } from '../../shared/config/settings.js';
+import { getInterpolatedEntities } from './interpolation.js';
 import {
   drawShip,
   drawGrid,
@@ -157,46 +160,68 @@ async function initGame(room, playerName, connection, joinData) {
 
 function startGame(assets, canvasConfig, playerName, connection, playerId) {
   const input = createInput(window);
-  const pendingInputs = new Map();
+  const pendingInputs = new Set();
+  const predictedRockets = new Map();
+  const snapshotBuffer = [];
+  const interpolationDelayStepMs = 1000 / 30;
+  const maxInterpolationDelayMs = 500;
+  let interpolationDelayMs = interpolationDelayStepMs * 2;
   let entities = [];
   let clientTick = 0;
   let inputSequence = 0;
-  let serverTick = 0;
-  let lastSnapshotReceivedAt = null;
-  let rttMs = null;
-  let bytesInPerSecond = 0;
-  let bytesOutPerSecond = 0;
-  let statsWindowStart = performance.now();
-  let previousBytesIn = connection.bytesIn;
-  let previousBytesOut = connection.bytesOut;
-
-  const netgraph = document.createElement('pre');
-  netgraph.style.cssText =
-    'position:fixed;top:12px;right:12px;z-index:10;margin:0;padding:8px 10px;' +
-    'color:#d8f3dc;background:#101820dd;font:12px/1.5 monospace;pointer-events:none';
-  document.body.appendChild(netgraph);
+  const interpolationDelayHud = document.querySelector('#interpolation-delay');
 
   connection.addEventListener('snapshot', (event) => {
     const snapshot = event.detail;
     entities = snapshot.entities;
-    serverTick = snapshot.tick;
-    lastSnapshotReceivedAt = performance.now();
+    const receivedAt = performance.now();
+    snapshotBuffer.push({
+      receivedAt,
+      entities: snapshot.entities,
+    });
+    while (snapshotBuffer.length > 30) {
+      snapshotBuffer.shift();
+    }
 
-    const acknowledgedSeq = snapshot.lastProcessedSeq?.[playerId];
-    if (Number.isInteger(acknowledgedSeq)) {
-      for (const [seq, sentAt] of pendingInputs) {
-        if (seq <= acknowledgedSeq) {
-          if (seq === acknowledgedSeq) {
-            rttMs = performance.now() - sentAt;
-          }
-          pendingInputs.delete(seq);
-        }
+    for (const entity of snapshot.entities) {
+      if (
+        entity.kind === 'miniRocket' &&
+        entity.ownerPlayerId === playerId &&
+        Number.isInteger(entity.fireSeq)
+      ) {
+        predictedRockets.delete(entity.fireSeq);
       }
     }
 
+    const acknowledgedSeq = snapshot.lastProcessedSeq?.[playerId];
+    if (Number.isInteger(acknowledgedSeq)) {
+      for (const seq of pendingInputs) {
+        if (seq <= acknowledgedSeq) {
+          pendingInputs.delete(seq);
+        }
+      }
+      for (const seq of predictedRockets.keys()) {
+        if (seq <= acknowledgedSeq) {
+          predictedRockets.delete(seq);
+        }
+      }
+    }
   });
 
   function simulate(dt) {
+    if (input.isJustPressed('BracketLeft')) {
+      interpolationDelayMs = Math.max(
+        0,
+        interpolationDelayMs - interpolationDelayStepMs
+      );
+    }
+    if (input.isJustPressed('BracketRight')) {
+      interpolationDelayMs = Math.min(
+        maxInterpolationDelayMs,
+        interpolationDelayMs + interpolationDelayStepMs
+      );
+    }
+
     clientTick = (clientTick + 1) >>> 0;
     inputSequence = (inputSequence + 1) >>> 0;
 
@@ -204,18 +229,45 @@ function startGame(assets, canvasConfig, playerName, connection, playerId) {
       Number(input.isDown('KeyW')) - Number(input.isDown('KeyS'));
     const turn =
       Number(input.isDown('KeyD')) - Number(input.isDown('KeyA'));
+    const fire = input.isJustPressed('Space');
     const message = createInputMessage({
       seq: inputSequence,
       tick: clientTick,
       thrust,
       turn,
-      fire: input.isJustPressed('Space'),
+      fire,
     });
 
     if (connection.send(message, { queueIfDisconnected: false })) {
-      pendingInputs.set(inputSequence, performance.now());
+      pendingInputs.add(inputSequence);
       while (pendingInputs.size > 120) {
-        pendingInputs.delete(pendingInputs.keys().next().value);
+        pendingInputs.delete(pendingInputs.values().next().value);
+      }
+
+      const localShip = entities.find(
+        (entity) =>
+          entity.kind === 'mainShip' &&
+          entity.playerId === playerId &&
+          entity.alive
+      );
+      if (fire && localShip) {
+        const launch = getMiniRocketLaunchState(localShip);
+        predictedRockets.set(inputSequence, {
+          id: `predicted-${playerId}-${inputSequence}`,
+          kind: 'miniRocket',
+          pos: { x: launch.pos.x, y: launch.pos.y },
+          vel: { x: launch.vel.x, y: launch.vel.y },
+          x: launch.pos.x,
+          y: launch.pos.y,
+          radius: launch.radius,
+          angle: launch.angle,
+          alive: true,
+          ownerPlayerId: playerId,
+          fireSeq: inputSequence,
+          spawnedAt: performance.now(),
+          startX: launch.pos.x,
+          startY: launch.pos.y,
+        });
       }
     }
 
@@ -224,6 +276,35 @@ function startGame(assets, canvasConfig, playerName, connection, playerId) {
 
   function render(alpha, stats) {
     const ctx = canvasConfig.ctx;
+    const now = performance.now();
+    for (const [seq, rocket] of predictedRockets) {
+      const elapsedSeconds = (now - rocket.spawnedAt) / 1000;
+      if (elapsedSeconds >= rocketTtl) {
+        predictedRockets.delete(seq);
+        continue;
+      }
+
+      rocket.x = rocket.startX + rocket.vel.x * elapsedSeconds;
+      rocket.y = rocket.startY + rocket.vel.y * elapsedSeconds;
+      rocket.pos.x = rocket.x;
+      rocket.pos.y = rocket.y;
+    }
+    const renderEntities = getInterpolatedEntities(
+      snapshotBuffer,
+      now - interpolationDelayMs,
+      playerId
+    ).filter(
+      (entity) =>
+        entity.kind !== 'miniRocket' || entity.ownerPlayerId !== playerId
+    );
+    renderEntities.push(
+      ...entities.filter(
+        (entity) =>
+          entity.kind === 'miniRocket' &&
+          entity.ownerPlayerId === playerId
+      )
+    );
+    renderEntities.push(...predictedRockets.values());
     const localShip = entities.find(
       (entity) => entity.kind === 'mainShip' && entity.playerId === playerId
     );
@@ -232,7 +313,7 @@ function startGame(assets, canvasConfig, playerName, connection, playerId) {
     ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
 
     drawGrid(ctx, window.innerWidth, window.innerHeight);
-    for (const entity of entities) {
+    for (const entity of renderEntities) {
       if (!entity.alive) continue;
 
       if (entity.kind === 'mainShip') {
@@ -260,28 +341,10 @@ function startGame(assets, canvasConfig, playerName, connection, playerId) {
       }
     }
 
-    const now = performance.now();
-    if (now - statsWindowStart >= 1000) {
-      const elapsedSeconds = (now - statsWindowStart) / 1000;
-      bytesInPerSecond =
-        ((connection.bytesIn - previousBytesIn) / elapsedSeconds) | 0;
-      bytesOutPerSecond =
-        ((connection.bytesOut - previousBytesOut) / elapsedSeconds) | 0;
-      previousBytesIn = connection.bytesIn;
-      previousBytesOut = connection.bytesOut;
-      statsWindowStart = now;
+    if (interpolationDelayHud) {
+      interpolationDelayHud.textContent =
+        `Interpolation delay: ${interpolationDelayMs.toFixed(0)} ms ([ / ] to adjust)`;
     }
-
-    const snapshotAgeMs =
-      lastSnapshotReceivedAt === null
-        ? 'waiting'
-        : `${Math.max(0, performance.now() - lastSnapshotReceivedAt).toFixed(0)} ms`;
-    netgraph.textContent =
-      `RTT: ${rttMs === null ? 'waiting' : `${rttMs.toFixed(1)} ms`}\n` +
-      `Snapshot age: ${snapshotAgeMs}\n` +
-      `Network: ↓ ${bytesInPerSecond} B/s  ↑ ${bytesOutPerSecond} B/s\n` +
-      `Pending inputs: ${pendingInputs.size}\n` +
-      `Server tick: ${serverTick}`;
   }
 
   const loop = createLoop({
