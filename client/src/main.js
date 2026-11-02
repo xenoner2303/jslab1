@@ -7,6 +7,8 @@ import { Lobby } from '../../shared/sim/lobby.js';
 import { initLobbyRendering } from '../../shared/sim/lobbyRendering.js';
 import { getMiniRocketLaunchState } from '../../shared/sim/miniRocket.js';
 import { createInputMessage } from '../../shared/protocol/messages.js';
+import { integrateShip } from '../../shared/sim/integrate.js';
+import { wrap } from '../../shared/sim/arena.js';
 import { rocketTtl } from '../../shared/config/settings.js';
 import { getInterpolatedEntities } from './interpolation.js';
 import {
@@ -164,7 +166,7 @@ async function initGame(room, playerName, connection, joinData) {
 
 function startGame(assets, canvasConfig, playerName, connection, playerId) {
   const input = createInput(window);
-  const pendingInputs = new Set();
+  const pendingInputs = new Map();
   const predictedRockets = new Map();
   const snapshotBuffer = [];
   const interpolationDelayStepMs = 1000 / 30;
@@ -206,12 +208,56 @@ function startGame(assets, canvasConfig, playerName, connection, playerId) {
       (entity) => entity.kind === 'mainShip' && entity.playerId === playerId
     );
     const acknowledgedSeq = snapshot.lastProcessedSeq?.[playerId];
-    if (Number.isInteger(acknowledgedSeq)) {
-      for (const seq of pendingInputs) {
+    if (authoritativeShip && Number.isInteger(acknowledgedSeq)) {
+      const now = performance.now();
+      const currentCorrection = getCorrectionOffset(now);
+      const previousState = predictedShip
+        ? {
+            pos: { ...predictedShip.pos },
+            vel: { ...predictedShip.vel },
+          }
+        : null;
+      const previousVisualPosition = predictedShip
+        ? {
+            x: predictedShip.pos.x + currentCorrection.x,
+            y: predictedShip.pos.y + currentCorrection.y,
+          }
+        : null;
+
+      predictedShip = {
+        ...authoritativeShip,
+        pos: { ...authoritativeShip.pos },
+        vel: { ...authoritativeShip.vel },
+      };
+
+      for (const seq of pendingInputs.keys()) {
         if (seq <= acknowledgedSeq) {
           pendingInputs.delete(seq);
         }
       }
+
+      for (const message of pendingInputs.values()) {
+        applyPredictedInput(message);
+      }
+
+      correctionMagnitude = previousState
+        ? Math.hypot(
+            previousState.pos.x - predictedShip.pos.x,
+            previousState.pos.y - predictedShip.pos.y,
+            (previousState.vel.x - predictedShip.vel.x) * step,
+            (previousState.vel.y - predictedShip.vel.y) * step
+          )
+        : 0;
+      correctionOffsetX = previousVisualPosition
+        ? previousVisualPosition.x - predictedShip.pos.x
+        : 0;
+      correctionOffsetY = previousVisualPosition
+        ? previousVisualPosition.y - predictedShip.pos.y
+        : 0;
+      correctionStartedAt = now;
+    }
+
+    if (Number.isInteger(acknowledgedSeq)) {
       for (const seq of predictedRockets.keys()) {
         if (seq <= acknowledgedSeq) {
           predictedRockets.delete(seq);
@@ -269,18 +315,20 @@ function startGame(assets, canvasConfig, playerName, connection, playerId) {
     });
 
     if (connection.send(message, { queueIfDisconnected: false })) {
-      pendingInputs.add(inputSequence);
+      pendingInputs.set(inputSequence, message);
       while (pendingInputs.size > 120) {
-        pendingInputs.delete(pendingInputs.values().next().value);
+        pendingInputs.delete(pendingInputs.keys().next().value);
       }
 
-      const localShip = entities.find(
-        (entity) =>
-          entity.kind === 'mainShip' &&
-          entity.playerId === playerId &&
-          entity.alive
-      );
-      if (fire && localShip) {
+      const localShip =
+        predictedShip ??
+        entities.find(
+          (entity) =>
+            entity.kind === 'mainShip' &&
+            entity.playerId === playerId &&
+            entity.alive
+        );
+      if (fire && localShip?.alive) {
         const launch = getMiniRocketLaunchState(localShip);
         predictedRockets.set(inputSequence, {
           id: `predicted-${playerId}-${inputSequence}`,
@@ -308,6 +356,7 @@ function startGame(assets, canvasConfig, playerName, connection, playerId) {
   function render(alpha, stats) {
     const ctx = canvasConfig.ctx;
     const now = performance.now();
+    const correctionOffset = getCorrectionOffset(now);
     for (const [seq, rocket] of predictedRockets) {
       const elapsedSeconds = (now - rocket.spawnedAt) / 1000;
       if (elapsedSeconds >= rocketTtl) {
