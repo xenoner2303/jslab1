@@ -16,14 +16,14 @@ As we can see, at the second one correction is near 0, because client and server
 
 Test at 30 Hz with 4 players. Measure each codec under the same game conditions.
 
-| Codec | Bytes per snapshot | Down per client (KB/s) | Up per client (KB/s) | Encode + decode (µs) |
+| Codec | Bytes/snapshot | KB/s per client (down) | KB/s per client (up) | Encode+ decode µs |
 |---|---:|---:|---:|---:|
-| JSON | 3568 | 103 | 2.1 | 10.5 |
-| Binary (`DataView`) | 50 | 1.5 | 0.4 | 7.7 |
+| JSON | 3676 | 107.4 | 2.04 | 88.3 |
+| Binary (`DataView`) | 575 | 16.8 | 0.38 | 74.5 |
 
-Binary sends less data, but its format is harder to read and maintain.
+As far as we can see, binary sends less data, but its format is harder to read and maintain.
 
-## How the netcode works
+## netcode write-up
 
 The server is the authority: clients send inputs, not positions. The server
 checks those inputs, runs the shared simulation, and sends snapshots. This
