@@ -1,3 +1,4 @@
+![20-second GIF of both windows side by side](./screenshots/sidebyside.gif)
 ## 1. With a prediction error in the shared `integrate.js` physics, I added a random angle change. The ship had to keep correcting its direction.
 ```
 angle += (Math.random() - 0.5) * 0.05; // only for the lab

@@ -21,10 +21,14 @@ const MAX_QUEUED_INPUTS = 120;
 class PlayerInput {
   current = { thrust: 0, turn: 0 };
   firePending = false;
+  fireSequence = null;
 
   apply(message) {
     this.current = { thrust: message.thrust, turn: message.turn };
-    this.firePending ||= message.fire;
+    if (message.fire && !this.firePending) {
+      this.firePending = true;
+      this.fireSequence = message.seq;
+    }
   }
 
   isDown(key) {
@@ -39,6 +43,12 @@ class PlayerInput {
     if (key !== "Space" || !this.firePending) return false;
     this.firePending = false;
     return true;
+  }
+
+  consumeFireSequence() {
+    const fireSequence = this.fireSequence;
+    this.fireSequence = null;
+    return fireSequence;
   }
 }
 
@@ -208,6 +218,7 @@ export class Match {
       snapshot.hasShield = entity.hasShield;
     } else if (entity.kind === "miniRocket") {
       snapshot.ownerPlayerId = playerIdByOwner(this.players, entity.owner);
+      snapshot.fireSeq = entity.fireSeq;
     } else if (entity.kind === "pickup") {
       snapshot.effect = entity.effect;
     } else if (entity.kind === "explosion") {
