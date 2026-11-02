@@ -105,7 +105,7 @@ class Lobby extends EventTarget {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const networkParams = new URLSearchParams(window.location.search);
     const wsParams = new URLSearchParams();
-    for (const key of ['latencyMs', 'jitterMs', 'dropRate']) {
+    for (const key of ['latencyMs', 'jitterMs', 'dropRate', 'codec']) {
       if (networkParams.has(key)) {
         wsParams.set(key, networkParams.get(key));
       }
