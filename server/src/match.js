@@ -12,10 +12,10 @@ import {
   shipWidth,
   arenaWidth,
   arenaHeight,
+  simulationTickRate,
 } from "../../shared/config/settings.js";
 
-const TICK_RATE = 30;
-const TICK_INTERVAL_MS = 1000 / TICK_RATE;
+const TICK_INTERVAL_MS = 1000 / simulationTickRate;
 const MAX_QUEUED_INPUTS = 120;
 
 class PlayerInput {
@@ -124,7 +124,7 @@ export class Match {
   getStats() {
     return {
       tick: this.tick,
-      targetTickRate: TICK_RATE,
+      targetTickRate: simulationTickRate,
       players: this.players.size,
       lastTickDurationMs: this.lastTickDurationMs,
       lastTickJitterMs: this.lastTickJitterMs,
@@ -145,7 +145,8 @@ export class Match {
     this.lastTickJitterMs = tickStartedAt - this.#nextTickAt;
 
     for (const [playerId, state] of this.players) {
-      for (const input of state.queuedInputs.splice(0)) {
+      const input = state.queuedInputs.shift();
+      if (input) {
         state.input.apply(input);
         state.lastProcessedSeq = input.seq;
       }
@@ -153,7 +154,7 @@ export class Match {
       state.player.state = this.#serializeEntity(state.ship, playerId);
     }
 
-    this.world.step(1 / TICK_RATE);
+    this.world.step(1 / simulationTickRate);
     for (const state of this.players.values()) {
       wrap(state.ship, arenaWidth, arenaHeight);
       state.player.state = this.#serializeEntity(state.ship, state.player.id);

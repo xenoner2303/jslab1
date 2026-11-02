@@ -6,6 +6,8 @@ import { initHud } from '../../shared/sim/hud.js';
 import { Lobby } from '../../shared/sim/lobby.js';
 import { initLobbyRendering } from '../../shared/sim/lobbyRendering.js';
 import { createInputMessage } from '../../shared/protocol/messages.js';
+import { integrateShip } from '../../shared/sim/integrate.js';
+import { wrap } from '../../shared/sim/arena.js';
 import {
   drawShip,
   drawGrid,
@@ -16,7 +18,11 @@ import {
   drawBarrierShield,
 } from './render/draw.js';
 import { configureCanvas } from './render/canvas.js';
-import { step } from '../../shared/config/settings.js';
+import {
+  arenaHeight,
+  arenaWidth,
+  step,
+} from '../../shared/config/settings.js';
 
 const hud = initHud();
 
@@ -159,42 +165,99 @@ function startGame(assets, canvasConfig, playerName, connection, playerId) {
   const input = createInput(window);
   const pendingInputs = new Map();
   let entities = [];
+  let predictedShip = null;
+  let correctionMagnitude = 0;
+  let correctionOffsetX = 0;
+  let correctionOffsetY = 0;
+  let correctionStartedAt = 0;
   let clientTick = 0;
   let inputSequence = 0;
-  let serverTick = 0;
-  let lastSnapshotReceivedAt = null;
-  let rttMs = null;
-  let bytesInPerSecond = 0;
-  let bytesOutPerSecond = 0;
-  let statsWindowStart = performance.now();
-  let previousBytesIn = connection.bytesIn;
-  let previousBytesOut = connection.bytesOut;
-
-  const netgraph = document.createElement('pre');
-  netgraph.style.cssText =
-    'position:fixed;top:12px;right:12px;z-index:10;margin:0;padding:8px 10px;' +
-    'color:#d8f3dc;background:#101820dd;font:12px/1.5 monospace;pointer-events:none';
-  document.body.appendChild(netgraph);
 
   connection.addEventListener('snapshot', (event) => {
     const snapshot = event.detail;
     entities = snapshot.entities;
-    serverTick = snapshot.tick;
-    lastSnapshotReceivedAt = performance.now();
 
+    const authoritativeShip = entities.find(
+      (entity) => entity.kind === 'mainShip' && entity.playerId === playerId
+    );
     const acknowledgedSeq = snapshot.lastProcessedSeq?.[playerId];
-    if (Number.isInteger(acknowledgedSeq)) {
-      for (const [seq, sentAt] of pendingInputs) {
-        if (seq <= acknowledgedSeq) {
-          if (seq === acknowledgedSeq) {
-            rttMs = performance.now() - sentAt;
+    if (authoritativeShip && Number.isInteger(acknowledgedSeq)) {
+      const now = performance.now();
+      const previousPredictedState = predictedShip
+        ? {
+            pos: { x: predictedShip.pos.x, y: predictedShip.pos.y },
+            vel: { x: predictedShip.vel.x, y: predictedShip.vel.y },
           }
+        : null;
+      const previousVisualPosition = predictedShip
+        ? {
+            x: predictedShip.pos.x + getCorrectionOffset(now).x,
+            y: predictedShip.pos.y + getCorrectionOffset(now).y,
+          }
+        : null;
+
+      predictedShip = {
+        ...authoritativeShip,
+        pos: { ...authoritativeShip.pos },
+        vel: { ...authoritativeShip.vel },
+      };
+
+      for (const [seq, pending] of pendingInputs) {
+        if (seq <= acknowledgedSeq) {
           pendingInputs.delete(seq);
         }
       }
-    }
 
+      for (const pending of pendingInputs.values()) {
+        applyPredictedInput(pending.message);
+      }
+
+      if (previousPredictedState) {
+        const positionDeltaX =
+          previousPredictedState.pos.x - predictedShip.pos.x;
+        const positionDeltaY =
+          previousPredictedState.pos.y - predictedShip.pos.y;
+        const velocityDeltaX =
+          (previousPredictedState.vel.x - predictedShip.vel.x) * step;
+        const velocityDeltaY =
+          (previousPredictedState.vel.y - predictedShip.vel.y) * step;
+
+        correctionMagnitude = Math.hypot(
+          positionDeltaX,
+          positionDeltaY,
+          velocityDeltaX,
+          velocityDeltaY
+        );
+      } else {
+        correctionMagnitude = 0;
+      }
+      correctionOffsetX = previousVisualPosition
+        ? previousVisualPosition.x - predictedShip.pos.x
+        : 0;
+      correctionOffsetY = previousVisualPosition
+        ? previousVisualPosition.y - predictedShip.pos.y
+        : 0;
+      correctionStartedAt = now;
+    }
   });
+
+  function applyPredictedInput(message) {
+    if (!predictedShip || !predictedShip.alive) return;
+
+    predictedShip = {
+      ...predictedShip,
+      ...integrateShip(predictedShip, message, step),
+    };
+    wrap(predictedShip, arenaWidth, arenaHeight);
+  }
+
+  function getCorrectionOffset(now) {
+    const remaining = Math.max(0, 1 - (now - correctionStartedAt) / 100);
+    return {
+      x: correctionOffsetX * remaining,
+      y: correctionOffsetY * remaining,
+    };
+  }
 
   function simulate(dt) {
     clientTick = (clientTick + 1) >>> 0;
@@ -213,10 +276,13 @@ function startGame(assets, canvasConfig, playerName, connection, playerId) {
     });
 
     if (connection.send(message, { queueIfDisconnected: false })) {
-      pendingInputs.set(inputSequence, performance.now());
+      pendingInputs.set(inputSequence, {
+        message,
+      });
       while (pendingInputs.size > 120) {
         pendingInputs.delete(pendingInputs.keys().next().value);
       }
+      applyPredictedInput(message);
     }
 
     input.clearJustPressed();
@@ -224,10 +290,12 @@ function startGame(assets, canvasConfig, playerName, connection, playerId) {
 
   function render(alpha, stats) {
     const ctx = canvasConfig.ctx;
+    const now = performance.now();
+    const correctionOffset = getCorrectionOffset(now);
     const localShip = entities.find(
       (entity) => entity.kind === 'mainShip' && entity.playerId === playerId
     );
-    hud.update(stats, localShip?.score ?? 0);
+    hud.update(stats, localShip?.score ?? 0, correctionMagnitude);
 
     ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
 
@@ -236,19 +304,34 @@ function startGame(assets, canvasConfig, playerName, connection, playerId) {
       if (!entity.alive) continue;
 
       if (entity.kind === 'mainShip') {
+        const isLocalShip = entity.playerId === playerId && predictedShip;
+        const shipToRender =
+          isLocalShip
+            ? {
+                ...entity,
+                x: predictedShip.pos.x + correctionOffset.x,
+                y: predictedShip.pos.y + correctionOffset.y,
+                pos: {
+                  x: predictedShip.pos.x + correctionOffset.x,
+                  y: predictedShip.pos.y + correctionOffset.y,
+                },
+                angle: predictedShip.angle,
+                thrust: predictedShip.thrust,
+              }
+            : entity;
         drawShip(
           ctx,
           {
-            x: entity.x,
-            y: entity.y,
-            angle: entity.angle,
-            thrust: entity.thrust,
+            x: shipToRender.x,
+            y: shipToRender.y,
+            angle: shipToRender.angle,
+            thrust: shipToRender.thrust,
             angleChange: 0,
             playerName: entity.playerName,
           },
           assets.ship
         );
-        if (entity.hasShield) drawBarrierShield(ctx, entity);
+        if (entity.hasShield) drawBarrierShield(ctx, shipToRender);
       } else if (entity.kind === 'miniRocket') {
         drawMiniRocket(ctx, entity);
       } else if (entity.kind === 'bliblie') {
@@ -260,28 +343,6 @@ function startGame(assets, canvasConfig, playerName, connection, playerId) {
       }
     }
 
-    const now = performance.now();
-    if (now - statsWindowStart >= 1000) {
-      const elapsedSeconds = (now - statsWindowStart) / 1000;
-      bytesInPerSecond =
-        ((connection.bytesIn - previousBytesIn) / elapsedSeconds) | 0;
-      bytesOutPerSecond =
-        ((connection.bytesOut - previousBytesOut) / elapsedSeconds) | 0;
-      previousBytesIn = connection.bytesIn;
-      previousBytesOut = connection.bytesOut;
-      statsWindowStart = now;
-    }
-
-    const snapshotAgeMs =
-      lastSnapshotReceivedAt === null
-        ? 'waiting'
-        : `${Math.max(0, performance.now() - lastSnapshotReceivedAt).toFixed(0)} ms`;
-    netgraph.textContent =
-      `RTT: ${rttMs === null ? 'waiting' : `${rttMs.toFixed(1)} ms`}\n` +
-      `Snapshot age: ${snapshotAgeMs}\n` +
-      `Network: ↓ ${bytesInPerSecond} B/s  ↑ ${bytesOutPerSecond} B/s\n` +
-      `Pending inputs: ${pendingInputs.size}\n` +
-      `Server tick: ${serverTick}`;
   }
 
   const loop = createLoop({

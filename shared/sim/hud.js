@@ -3,17 +3,21 @@ function initHud() {
   const stepsE = document.querySelector('#steps');
   const fpsE = document.querySelector('#fps');
   const frameTimeE = document.querySelector('#frameTime');
+  const correctionE = document.querySelector('#reconciliation-correction');
   const msgE = document.getElementById('kill-msg');
 
   let hideTimeout = null;
 
   return {
-    update(stats, score) {
+    update(stats, score, correctionMagnitude) {
       if (scoreE) scoreE.textContent = `Score: ${score} bliblies`;
       if (stepsE) stepsE.textContent = `Steps: ${stats.sps}`;
       if (fpsE) fpsE.textContent = `FPS: ${stats.fps.toFixed(2)}`;
       if (frameTimeE)
         frameTimeE.textContent = `Frame Time: ${stats.frameTime.toFixed(2)} ms`;
+      if (correctionE && correctionMagnitude !== undefined) {
+        correctionE.textContent = `Reconciliation correction: ${correctionMagnitude.toFixed(2)} px`;
+      }
     },
     showKillMessage(count) {
       if (count < 2) return;
