@@ -1,3 +1,8 @@
+import {
+  decodeJsonMessage,
+  encodeJsonMessage,
+} from '../../shared/codec/json.js';
+
 export class GameConnection extends EventTarget {
   #url;
   #socket = null;
@@ -6,10 +11,20 @@ export class GameConnection extends EventTarget {
   #maxReconnectAttempts = 5;
   #reconnectTimeout = null;
   #isIntentionalClose = false;
+  #bytesIn = 0;
+  #bytesOut = 0;
 
   constructor(url) {
     super();
     this.#url = url;
+  }
+
+  get bytesIn() {
+    return this.#bytesIn;
+  }
+
+  get bytesOut() {
+    return this.#bytesOut;
   }
 
   connect() {
@@ -24,13 +39,14 @@ export class GameConnection extends EventTarget {
 
       while (this.#sendQueue.length > 0) {
         const payload = this.#sendQueue.shift();
-        socket.send(JSON.stringify(payload));
+        this.#sendPayload(socket, payload);
       }
     });
 
     socket.addEventListener('message', (event) => {
       try {
-        const data = JSON.parse(event.data);
+        this.#bytesIn += new TextEncoder().encode(event.data).byteLength;
+        const data = decodeJsonMessage(event.data);
 
         if (data.type) {
           this.dispatchEvent(new CustomEvent(data.type, { detail: data }));
@@ -57,10 +73,19 @@ export class GameConnection extends EventTarget {
 
   send(data, { queueIfDisconnected = true } = {}) {
     if (this.#socket && this.#socket.readyState === WebSocket.OPEN) {
-      this.#socket.send(JSON.stringify(data));
+      this.#sendPayload(this.#socket, data);
+      return true;
     } else if (queueIfDisconnected && !this.#isIntentionalClose) {
       this.#sendQueue.push(data);
+      return true;
     }
+    return false;
+  }
+
+  #sendPayload(socket, data) {
+    const payload = encodeJsonMessage(data);
+    this.#bytesOut += new TextEncoder().encode(payload).byteLength;
+    socket.send(payload);
   }
 
   close() {

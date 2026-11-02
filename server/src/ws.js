@@ -2,6 +2,44 @@ import { WebSocket, WebSocketServer } from "ws";
 import { performance } from "node:perf_hooks";
 import { validateMessage, MessageTypes } from "./protocol.js";
 import { config } from "./config.js";
+import { encodeJsonMessage } from "../../shared/codec/json.js";
+
+function createNetworkSimulation(req) {
+  const params = new URL(req.url, "http://localhost").searchParams;
+  const boundedNumber = (name, fallback, min, max) => {
+    const value = Number(params.get(name));
+    return Number.isFinite(value)
+      ? Math.max(min, Math.min(max, value))
+      : fallback;
+  };
+  const latencyMs = boundedNumber("latencyMs", 0, 0, 2000);
+  const jitterMs = boundedNumber("jitterMs", 0, 0, 1000);
+  const dropRate = boundedNumber("dropRate", 0, 0, 0.25);
+  const nextDeliveryAt = { incoming: 0, outgoing: 0 };
+  const timers = new Set();
+
+  return {
+    settings: { latencyMs, jitterMs, dropRate },
+    schedule(direction, callback) {
+      if (Math.random() < dropRate) return false;
+
+      const jitter = (Math.random() * 2 - 1) * jitterMs;
+      const requestedAt = performance.now() + Math.max(0, latencyMs + jitter);
+      const deliveryAt = Math.max(requestedAt, nextDeliveryAt[direction]);
+      nextDeliveryAt[direction] = deliveryAt;
+      const timer = setTimeout(() => {
+        timers.delete(timer);
+        callback();
+      }, Math.max(0, deliveryAt - performance.now()));
+      timers.add(timer);
+      return true;
+    },
+    clear() {
+      for (const timer of timers) clearTimeout(timer);
+      timers.clear();
+    },
+  };
+}
 
 export function setupWebSocket(httpServer, roomManager) {
   const wss = new WebSocketServer({
@@ -14,7 +52,8 @@ export function setupWebSocket(httpServer, roomManager) {
       console.error("Socket error encountered:", err);
     });
 
-    socket.data = { player: null, room: null };
+    const networkSimulation = createNetworkSimulation(req);
+    socket.data = { player: null, room: null, networkSimulation };
     socket.missedPongs = 0;
     socket.rateLimit = {
       tokens: config.limits.messageBurst,
@@ -79,7 +118,7 @@ export function setupWebSocket(httpServer, roomManager) {
             return;
           }
           socket.send(
-            JSON.stringify({
+            encodeJsonMessage({
               type: MessageTypes.JOINED,
               playerId: socket.data.player.id,
               state: socket.data.player.state,
@@ -109,12 +148,13 @@ export function setupWebSocket(httpServer, roomManager) {
           return;
         }
 
-        socket.data = { player, room };
+        socket.data = { player, room, networkSimulation };
         socket.send(
-          JSON.stringify({
+          encodeJsonMessage({
             type: MessageTypes.JOINED,
             playerId: player.id,
             state: player.state,
+            seed: room.match.seed,
           })
         );
         console.log(`Player '${playerName}' joined room ${room.id}`);
@@ -137,23 +177,14 @@ export function setupWebSocket(httpServer, roomManager) {
         return;
       }
 
-      if (msg.type === MessageTypes.STATE) {
-        player.state = {
-          x: msg.x,
-          y: msg.y,
-          angle: msg.angle,
-          thrust: msg.thrust,
-          alive: msg.alive,
-        };
-        room.broadcast(
-          {
-            type: MessageTypes.STATE,
-            playerId: player.id,
-            playerName: player.name,
-            ...player.state,
-          },
-          socket
-        );
+      if (msg.type === MessageTypes.INPUT) {
+        networkSimulation.schedule("incoming", () => {
+          if (!room.match.enqueueInput(player.id, msg)) {
+            console.warn(
+              `Dropped stale or queued input ${msg.seq} from player '${player.name}'`
+            );
+          }
+        });
       }
     });
 
@@ -163,8 +194,9 @@ export function setupWebSocket(httpServer, roomManager) {
       if (room && player) {
         room.removePlayer(socket);
         console.log(`Player '${player.name}' left room ${room.id}`);
-        socket.data = { player: null, room: null };
+        socket.data = { player: null, room: null, networkSimulation };
       }
+      networkSimulation.clear();
     });
   });
 

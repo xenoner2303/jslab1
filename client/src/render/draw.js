@@ -21,7 +21,7 @@ import {
   shieldHeight,
   bliblieWidth,
   bliblieHeight,
-} from '../../config/settings.js';
+} from '../../../shared/config/settings.js';
 
 function drawShip(ctx, ship, shipImg) {
   ctx.save();

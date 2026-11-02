@@ -6,22 +6,22 @@ import {
   explosionParticleMinSize,
   explosionParticleMaxSize,
   explosionParticleMaxSpeed,
-} from '../../config/settings.js';
+} from '../config/settings.js';
 
 class Explosion extends Entity {
   #ttl = explosionTtl;
 
-  constructor(pos) {
+  constructor(pos, random) {
     super(pos, new Vector2(0, 0), 0, true, 0, 'explosion');
 
     this.particles = [];
 
     for (let i = 0; i < explosionParticleCount; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const speed = Math.random() * explosionParticleMaxSpeed;
+      const angle = random() * Math.PI * 2;
+      const speed = random() * explosionParticleMaxSpeed;
 
       const radius =
-        (Math.random() * (explosionParticleMaxSize - explosionParticleMinSize) +
+        (random() * (explosionParticleMaxSize - explosionParticleMinSize) +
           explosionParticleMinSize) /
         2;
 

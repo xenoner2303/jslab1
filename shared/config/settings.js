@@ -30,6 +30,8 @@ export const explosionColors = ['#ff4500', '#ffee55'];
 // setup configuration
 export const step = 1 / 60;
 export const gridSize = 50;
+export const arenaWidth = 1200;
+export const arenaHeight = 800;
 
 // miniRockets
 export const rocketTtl = 10; // in seconds

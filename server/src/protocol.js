@@ -1,83 +1,72 @@
+import {
+  MessageTypes as SharedMessageTypes,
+  validateInputMessage,
+} from "../../shared/protocol/messages.js";
+import { decodeJsonMessage } from "../../shared/codec/json.js";
+
 export const MessageTypes = {
   JOIN: "join",
   JOINED: "joined",
   CHAT: "chat",
   ROSTER: "roster",
-  STATE: "state",
+  INPUT: SharedMessageTypes.INPUT,
+  SNAPSHOT: "snapshot",
 };
 
+function hasExactKeys(message, fields) {
+  return (
+    Object.keys(message).length === fields.length &&
+    fields.every((field) => Object.hasOwn(message, field))
+  );
+}
+
 export function validateMessage(rawData) {
+  let message;
   try {
-    const text = typeof rawData === "string" ? rawData : rawData.toString();
-    const msg = JSON.parse(text);
+    message = decodeJsonMessage(rawData);
+  } catch {
+    return { valid: false, error: "Invalid JSON format" };
+  }
 
-    if (!msg || typeof msg !== "object" || Array.isArray(msg)) {
-      return { valid: false, error: "Message must be a JSON object" };
-    }
+  if (!message || typeof message !== "object" || Array.isArray(message)) {
+    return { valid: false, error: "Message must be a JSON object" };
+  }
 
-    if (!msg.type || typeof msg.type !== "string") {
-      return { valid: false, error: "Missing or invalid 'type' field" };
-    }
+  if (message.type === MessageTypes.INPUT) {
+    return validateInputMessage(message);
+  }
 
-    const expectedKeys = {
-      [MessageTypes.JOIN]: ["type", "room", "name"],
-      [MessageTypes.CHAT]: ["type", "text"],
-      [MessageTypes.STATE]: [
-        "type",
-        "x",
-        "y",
-        "angle",
-        "thrust",
-        "alive",
-      ],
-    }[msg.type];
-
-    if (!expectedKeys) {
-      return { valid: false, error: `Unknown message type '${msg.type}'` };
-    }
-
+  if (message.type === MessageTypes.JOIN) {
     if (
-      Object.keys(msg).length !== expectedKeys.length ||
-      expectedKeys.some((key) => !Object.hasOwn(msg, key))
-    ) {
-      return { valid: false, error: `Invalid fields for '${msg.type}' message` };
-    }
-
-    if (
-      msg.type === MessageTypes.JOIN &&
-      (typeof msg.room !== "string" ||
-        msg.room.trim().length === 0 ||
-        msg.room.length > 64 ||
-        typeof msg.name !== "string" ||
-        msg.name.trim().length === 0 ||
-        msg.name.length > 30)
+      !hasExactKeys(message, ["type", "room", "name"]) ||
+      typeof message.room !== "string" ||
+      message.room.trim().length === 0 ||
+      message.room.length > 64 ||
+      typeof message.name !== "string" ||
+      message.name.trim().length === 0 ||
+      message.name.length > 30
     ) {
       return { valid: false, error: "Invalid join message fields" };
     }
 
+    return { valid: true, msg: message };
+  }
+
+  if (message.type === MessageTypes.CHAT) {
     if (
-      msg.type === MessageTypes.CHAT &&
-      (typeof msg.text !== "string" ||
-        msg.text.trim().length === 0 ||
-        msg.text.length > 256)
+      !hasExactKeys(message, ["type", "text"]) ||
+      typeof message.text !== "string" ||
+      message.text.trim().length === 0 ||
+      message.text.length > 256
     ) {
       return { valid: false, error: "Invalid chat message fields" };
     }
 
-    if (
-      msg.type === MessageTypes.STATE &&
-      (!Number.isFinite(msg.x) ||
-        !Number.isFinite(msg.y) ||
-        !Number.isFinite(msg.angle) ||
-        !Number.isFinite(msg.thrust) ||
-        Math.abs(msg.thrust) > 100 ||
-        typeof msg.alive !== "boolean")
-    ) {
-      return { valid: false, error: "Invalid player state fields" };
-    }
-
-    return { valid: true, msg };
-  } catch {
-    return { valid: false, error: "Invalid JSON format" };
+    return { valid: true, msg: message };
   }
+
+  return {
+    valid: false,
+    error: `Unknown message type '${String(message.type)}'`,
+  };
 }

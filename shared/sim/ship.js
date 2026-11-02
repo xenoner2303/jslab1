@@ -9,7 +9,7 @@ import {
   dragSpeed,
   maxShipHp,
   shipRespawnTime,
-} from '../../config/settings.js';
+} from '../config/settings.js';
 import { Vector2 } from './vector.js';
 
 class Ship extends Entity {

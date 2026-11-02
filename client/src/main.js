@@ -1,15 +1,11 @@
 import { createInput } from './input.js';
-import { getAngleDelta } from './supFunctions.js';
 import { createLoop } from './loop.js';
-import { Ship } from './sim/ship.js';
-import { World } from './sim/world.js';
-import { Vector2 } from './sim/vector.js';
-import { wrap } from './sim/arena.js';
 import { loadAll } from '../public/assets/loader.js';
-import { initAudio } from './sim/audio.js';
-import { initHud } from './sim/hud.js';
-import { Lobby } from './sim/lobby.js';
-import { initLobbyRendering } from './sim/lobbyRendering.js';
+import { initAudio } from '../../shared/sim/audio.js';
+import { initHud } from '../../shared/sim/hud.js';
+import { Lobby } from '../../shared/sim/lobby.js';
+import { initLobbyRendering } from '../../shared/sim/lobbyRendering.js';
+import { createInputMessage } from '../../shared/protocol/messages.js';
 import {
   drawShip,
   drawGrid,
@@ -20,7 +16,7 @@ import {
   drawBarrierShield,
 } from './render/draw.js';
 import { configureCanvas } from './render/canvas.js';
-import { step, shipWidth, shipHeight } from '../config/settings.js';
+import { step } from '../../shared/config/settings.js';
 
 const hud = initHud();
 
@@ -58,30 +54,6 @@ async function initGame(room, playerName, connection, joinData) {
   const chatMessages = document.getElementById('chat-messages');
   const chatForm = document.getElementById('chat-form');
   const chatInput = document.getElementById('chat-input');
-  const remotePlayers = new Map();
-  let localPlayerId = joinData.playerId;
-  let localSpawnState = joinData.spawnState;
-
-  function updateRoster(players) {
-    remotePlayers.clear();
-    for (const player of players) {
-      if (player.id !== localPlayerId && player.state) {
-        remotePlayers.set(player.id, { ...player.state, playerName: player.name });
-      }
-    }
-  }
-
-  updateRoster(joinData.roster);
-
-  connection.addEventListener('roster', (event) => {
-    updateRoster(event.detail.players);
-  });
-
-  connection.addEventListener('joined', (event) => {
-    localPlayerId = event.detail.playerId;
-    localSpawnState = event.detail.state;
-    remotePlayers.delete(localPlayerId);
-  });
 
   connection.addEventListener('chat', (event) => {
     const message = document.createElement('p');
@@ -107,13 +79,6 @@ async function initGame(room, playerName, connection, joinData) {
 
     connection.send({ type: 'chat', text });
     chatInput.value = '';
-  });
-
-  connection.addEventListener('state', (event) => {
-    const { playerId, playerName, ...state } = event.detail;
-    if (playerId !== localPlayerId) {
-      remotePlayers.set(playerId, { ...state, playerName });
-    }
   });
 
   let audioCtx = null; // for browser audio
@@ -155,38 +120,17 @@ async function initGame(room, playerName, connection, joinData) {
 
       cancelBtn.style.display = 'none';
       cancelBtn.onclick = null;
-      const audio = initAudio(audioCtx, assets);
-
-      const arenaWidth = room.arenaConfig.width;
-      const arenaHeight = room.arenaConfig.height;
-      const world = new World(arenaWidth, arenaHeight);
+      initAudio(audioCtx, assets);
       chatPanel.style.display = 'flex';
-
-      world.addEventListener('shoot', () => audio.playShoot());
-      world.addEventListener('exploded', () => audio.playExplosion());
-      world.addEventListener('hit', (event) =>
-        audio.playHit(event.detail.type)
-      );
-      world.addEventListener('environment', (event) =>
-        audio.playEnvironmentSound(event.detail.type)
-      );
-      world.addEventListener('kill', (event) => {
-        audio.playKillJoke(event.detail.count, event.detail.type);
-        hud.showKillMessage(event.detail.count);
-      });
 
       loadingScreen.style.display = 'none';
 
       startGame(
-        world,
         assets,
         canvasConfig,
-        arenaWidth,
-        arenaHeight,
         playerName,
         connection,
-        remotePlayers,
-        () => localSpawnState
+        joinData.playerId
       );
     } catch (error) {
       cancelBtn.style.display = 'none';
@@ -211,65 +155,68 @@ async function initGame(room, playerName, connection, joinData) {
   await loadGame();
 }
 
-function startGame(
-  world,
-  assets,
-  canvasConfig,
-  arenaWidth,
-  arenaHeight,
-  playerName,
-  connection,
-  remotePlayers,
-  getSpawnState
-) {
+function startGame(assets, canvasConfig, playerName, connection, playerId) {
   const input = createInput(window);
+  const pendingInputs = new Map();
+  let entities = [];
+  let clientTick = 0;
+  let inputSequence = 0;
+  let serverTick = 0;
+  let lastSnapshotReceivedAt = null;
+  let rttMs = null;
+  let bytesInPerSecond = 0;
+  let bytesOutPerSecond = 0;
+  let statsWindowStart = performance.now();
+  let previousBytesIn = connection.bytesIn;
+  let previousBytesOut = connection.bytesOut;
 
-  const spawnState = getSpawnState();
-  const startMainShipPos = new Vector2(
-    spawnState?.x ?? arenaWidth / 2,
-    spawnState?.y ?? arenaHeight / 2
-  );
+  const netgraph = document.createElement('pre');
+  netgraph.style.cssText =
+    'position:fixed;top:12px;right:12px;z-index:10;margin:0;padding:8px 10px;' +
+    'color:#d8f3dc;background:#101820dd;font:12px/1.5 monospace;pointer-events:none';
+  document.body.appendChild(netgraph);
 
-  const mainShipRadius = Math.sqrt(shipWidth ** 2 + shipHeight ** 2) / 2; // rectangle diag formula
+  connection.addEventListener('snapshot', (event) => {
+    const snapshot = event.detail;
+    entities = snapshot.entities;
+    serverTick = snapshot.tick;
+    lastSnapshotReceivedAt = performance.now();
 
-  let mainShip = new Ship(
-    startMainShipPos,
-    new Vector2(0, 0),
-    mainShipRadius,
-    spawnState?.angle ?? 0,
-    input,
-    playerName
-  );
-  world.spawn(mainShip);
+    const acknowledgedSeq = snapshot.lastProcessedSeq?.[playerId];
+    if (Number.isInteger(acknowledgedSeq)) {
+      for (const [seq, sentAt] of pendingInputs) {
+        if (seq <= acknowledgedSeq) {
+          if (seq === acknowledgedSeq) {
+            rttMs = performance.now() - sentAt;
+          }
+          pendingInputs.delete(seq);
+        }
+      }
+    }
 
-  let previous = {
-    pos: new Vector2(mainShip.pos.x, mainShip.pos.y),
-    angle: mainShip.angle,
-    thrust: mainShip.thrust,
-  }; // previous ship state, remove shallow copy cause equal vector2 reference
-  let stateSendTimer = 0;
+  });
 
   function simulate(dt) {
-    previous = {
-      pos: new Vector2(mainShip.pos.x, mainShip.pos.y),
-      angle: mainShip.angle,
-      thrust: mainShip.thrust,
-    };
+    clientTick = (clientTick + 1) >>> 0;
+    inputSequence = (inputSequence + 1) >>> 0;
 
-    world.step(dt, input);
-    wrap(mainShip, arenaWidth, arenaHeight);
+    const thrust =
+      Number(input.isDown('KeyW')) - Number(input.isDown('KeyS'));
+    const turn =
+      Number(input.isDown('KeyD')) - Number(input.isDown('KeyA'));
+    const message = createInputMessage({
+      seq: inputSequence,
+      tick: clientTick,
+      thrust,
+      turn,
+      fire: input.isJustPressed('Space'),
+    });
 
-    stateSendTimer += dt;
-    if (stateSendTimer >= 1 / 20) {
-      stateSendTimer = 0;
-      connection.send({
-        type: 'state',
-        x: mainShip.pos.x,
-        y: mainShip.pos.y,
-        angle: mainShip.angle,
-        thrust: mainShip.thrust,
-        alive: mainShip.alive,
-      }, { queueIfDisconnected: false });
+    if (connection.send(message, { queueIfDisconnected: false })) {
+      pendingInputs.set(inputSequence, performance.now());
+      while (pendingInputs.size > 120) {
+        pendingInputs.delete(pendingInputs.keys().next().value);
+      }
     }
 
     input.clearJustPressed();
@@ -277,61 +224,64 @@ function startGame(
 
   function render(alpha, stats) {
     const ctx = canvasConfig.ctx;
-    hud.update(stats, mainShip.score);
+    const localShip = entities.find(
+      (entity) => entity.kind === 'mainShip' && entity.playerId === playerId
+    );
+    hud.update(stats, localShip?.score ?? 0);
 
     ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
 
-    for (const entity of world.ofKind('miniRocket')) {
-      drawMiniRocket(ctx, entity);
-    }
+    drawGrid(ctx, window.innerWidth, window.innerHeight);
+    for (const entity of entities) {
+      if (!entity.alive) continue;
 
-    for (const entity of world.ofKind('bliblie')) {
-      drawBliBlie(ctx, entity, assets.bliblie);
-    }
-
-    for (const entity of world.ofKind('explosion')) {
-      drawExplosion(ctx, entity, assets.ship);
-    }
-
-    for (const entity of world.ofKind('pickup')) {
-      if (entity.effect == 'shield') {
+      if (entity.kind === 'mainShip') {
+        drawShip(
+          ctx,
+          {
+            x: entity.x,
+            y: entity.y,
+            angle: entity.angle,
+            thrust: entity.thrust,
+            angleChange: 0,
+            playerName: entity.playerName,
+          },
+          assets.ship
+        );
+        if (entity.hasShield) drawBarrierShield(ctx, entity);
+      } else if (entity.kind === 'miniRocket') {
+        drawMiniRocket(ctx, entity);
+      } else if (entity.kind === 'bliblie') {
+        drawBliBlie(ctx, entity, assets.bliblie);
+      } else if (entity.kind === 'explosion') {
+        drawExplosion(ctx, entity, assets.ship);
+      } else if (entity.kind === 'pickup' && entity.effect === 'shield') {
         drawShield(ctx, entity, assets.shield);
       }
     }
 
-    const angleChange = getAngleDelta(previous.angle, mainShip.angle);
-
-    const interpolatedShip = {
-      // interpolation between ship states
-      x: previous.pos.x + (mainShip.pos.x - previous.pos.x) * alpha,
-      y: previous.pos.y + (mainShip.pos.y - previous.pos.y) * alpha,
-      angle: previous.angle + angleChange * alpha,
-      thrust: previous.thrust + (mainShip.thrust - previous.thrust) * alpha,
-      angleChange,
-      playerName: mainShip.playerName,
-    };
-
-    drawGrid(ctx, window.innerWidth, window.innerHeight);
-    if (mainShip.alive) drawShip(ctx, interpolatedShip, assets.ship);
-    for (const player of remotePlayers.values()) {
-      if (player.alive !== false) {
-        drawShip(
-          ctx,
-          {
-            x: player.x,
-            y: player.y,
-            angle: player.angle,
-            thrust: player.thrust,
-            angleChange: 0,
-            playerName: player.playerName,
-          },
-          assets.ship
-        );
-      }
+    const now = performance.now();
+    if (now - statsWindowStart >= 1000) {
+      const elapsedSeconds = (now - statsWindowStart) / 1000;
+      bytesInPerSecond =
+        ((connection.bytesIn - previousBytesIn) / elapsedSeconds) | 0;
+      bytesOutPerSecond =
+        ((connection.bytesOut - previousBytesOut) / elapsedSeconds) | 0;
+      previousBytesIn = connection.bytesIn;
+      previousBytesOut = connection.bytesOut;
+      statsWindowStart = now;
     }
-    if (mainShip.alive && mainShip.hasShield) {
-      drawBarrierShield(ctx, mainShip);
-    }
+
+    const snapshotAgeMs =
+      lastSnapshotReceivedAt === null
+        ? 'waiting'
+        : `${Math.max(0, performance.now() - lastSnapshotReceivedAt).toFixed(0)} ms`;
+    netgraph.textContent =
+      `RTT: ${rttMs === null ? 'waiting' : `${rttMs.toFixed(1)} ms`}\n` +
+      `Snapshot age: ${snapshotAgeMs}\n` +
+      `Network: ↓ ${bytesInPerSecond} B/s  ↑ ${bytesOutPerSecond} B/s\n` +
+      `Pending inputs: ${pendingInputs.size}\n` +
+      `Server tick: ${serverTick}`;
   }
 
   const loop = createLoop({

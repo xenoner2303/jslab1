@@ -1,6 +1,6 @@
 import { Entity } from './entity.js';
 import { Vector2 } from './vector.js';
-import { rocketTtl, miniRocketSpeed } from '../../config/settings.js';
+import { rocketTtl, miniRocketSpeed } from '../config/settings.js';
 
 class MiniRocket extends Entity {
   #ttl = rocketTtl;

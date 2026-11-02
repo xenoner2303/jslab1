@@ -1,6 +1,8 @@
 import { EventEmitter } from "node:events";
 import { MatchLog } from "./log/matchlog.js";
 import { config } from "./config.js";
+import { Match } from "./match.js";
+import { encodeJsonMessage } from "../../shared/codec/json.js";
 
 export class Room extends EventEmitter {
   constructor(id, name, maxPlayers, logDir) {
@@ -19,6 +21,7 @@ export class Room extends EventEmitter {
     this.name = name;
     this.maxPlayers = maxPlayers;
     this.players = new Map();
+    this.match = new Match(this);
     this.matchLog = new MatchLog(this, logDir);
     this.#recordEvent("created", { name, maxPlayers });
     this.on("chat", ({ player, text, time }) => {
@@ -45,14 +48,7 @@ export class Room extends EventEmitter {
       throw new Error("Room is full");
     }
 
-    const spawnAngle = (2 * Math.PI * this.players.size) / this.maxPlayers;
-    player.state = {
-      x: 600 + Math.cos(spawnAngle) * 220,
-      y: 400 + Math.sin(spawnAngle) * 160,
-      angle: spawnAngle + Math.PI / 2,
-      thrust: 0,
-      alive: true,
-    };
+    this.match.addPlayer(player);
     this.players.set(socket, player);
     this.emit("join", { socket, player });
     this.#recordEvent("join", {
@@ -66,6 +62,7 @@ export class Room extends EventEmitter {
     const player = this.players.get(socket);
     if (player) {
       this.players.delete(socket);
+      this.match.removePlayer(player.id);
       this.emit("leave", { socket, player });
       this.#recordEvent("leave", {
         player: { id: player.id, name: player.name },
@@ -80,24 +77,32 @@ export class Room extends EventEmitter {
   }
 
   close() {
+    this.match.stop();
     this.emit("close");
   }
 
   broadcast(data, excludeSocket = null) {
-    const payload = JSON.stringify(data);
+    const payload = encodeJsonMessage(data);
     for (const [socket] of this.players) {
       if (socket === excludeSocket || socket.readyState !== 1) {
         continue;
       }
 
       if (
-        data.type === "state" &&
+        data.type === "snapshot" &&
         socket.bufferedAmount > config.limits.maxBufferedBytes
       ) {
         continue;
       }
 
-      socket.send(payload);
+      const send = () => {
+        if (socket.readyState === 1) socket.send(payload);
+      };
+      if (socket.data?.networkSimulation) {
+        socket.data.networkSimulation.schedule("outgoing", send);
+      } else {
+        send();
+      }
     }
   }
 
@@ -153,6 +158,15 @@ export class RoomManager { // to control Room List
       name: r.name,
       playersCount: r.players.size,
     }));
+  }
+
+  getStats() {
+    return {
+      rooms: [...this.rooms.values()].map((room) => ({
+        roomId: room.id,
+        ...room.match.getStats(),
+      })),
+    };
   }
 
   async flushLogs() {
