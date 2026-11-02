@@ -144,6 +144,20 @@ test("binary codec accepts typed-array views with offsets", () => {
   );
 });
 
+test("snapshot encoding grows its buffer for larger messages", () => {
+  const largeSnapshot = {
+    ...snapshot,
+    entities: Array.from({ length: 20 }, (_, index) => ({
+      ...snapshot.entities[2],
+      id: index + 1,
+    })),
+  };
+  assert.equal(
+    decodeBinaryMessage(encodeBinaryMessage(largeSnapshot)).entities.length,
+    largeSnapshot.entities.length,
+  );
+});
+
 test("binary codec rejects unsupported versions and malformed packets", () => {
   assert.throws(
     () => decodeBinaryMessage(new Uint8Array([99, 1])),

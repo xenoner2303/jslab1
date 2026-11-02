@@ -2,9 +2,14 @@ import {
   decodeJsonMessage,
   encodeJsonMessage,
 } from '../../shared/codec/json.js';
+import {
+  decodeBinaryMessage,
+  encodeBinaryMessage,
+} from '../../shared/codec/binary.js';
 
 export class GameConnection extends EventTarget {
   #url;
+  #codec;
   #socket = null;
   #sendQueue = [];
   #reconnectAttempts = 0;
@@ -17,6 +22,9 @@ export class GameConnection extends EventTarget {
   constructor(url) {
     super();
     this.#url = url;
+    this.#codec = new URL(url).searchParams.get('codec') === 'binary'
+      ? 'binary'
+      : 'json';
   }
 
   get bytesIn() {
@@ -30,6 +38,7 @@ export class GameConnection extends EventTarget {
   connect() {
     this.#isIntentionalClose = false;
     const socket = new WebSocket(this.#url);
+    socket.binaryType = 'arraybuffer';
     this.#socket = socket;
 
     socket.addEventListener('open', () => {
@@ -45,8 +54,14 @@ export class GameConnection extends EventTarget {
 
     socket.addEventListener('message', (event) => {
       try {
-        this.#bytesIn += new TextEncoder().encode(event.data).byteLength;
-        const data = decodeJsonMessage(event.data);
+        const data =
+          event.data instanceof ArrayBuffer
+            ? decodeBinaryMessage(event.data)
+            : decodeJsonMessage(event.data);
+        this.#bytesIn +=
+          typeof event.data === 'string'
+            ? new TextEncoder().encode(event.data).byteLength
+            : event.data.byteLength;
 
         if (data.type) {
           this.dispatchEvent(new CustomEvent(data.type, { detail: data }));
@@ -83,8 +98,15 @@ export class GameConnection extends EventTarget {
   }
 
   #sendPayload(socket, data) {
-    const payload = encodeJsonMessage(data);
-    this.#bytesOut += new TextEncoder().encode(payload).byteLength;
+    const useBinary =
+      this.#codec === 'binary' && data.type === 'input';
+    const payload = useBinary
+      ? encodeBinaryMessage(data)
+      : encodeJsonMessage(data);
+    this.#bytesOut +=
+      typeof payload === 'string'
+        ? new TextEncoder().encode(payload).byteLength
+        : payload.byteLength;
     socket.send(payload);
   }
 

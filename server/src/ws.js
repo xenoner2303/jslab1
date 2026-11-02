@@ -1,6 +1,8 @@
 import { WebSocket, WebSocketServer } from "ws";
 import { performance } from "node:perf_hooks";
 import { validateMessage, MessageTypes } from "./protocol.js";
+import { validateInputMessage } from "../../shared/protocol/messages.js";
+import { decodeBinaryMessage } from "../../shared/codec/binary.js";
 import { config } from "./config.js";
 import { encodeJsonMessage } from "../../shared/codec/json.js";
 
@@ -53,7 +55,12 @@ export function setupWebSocket(httpServer, roomManager) {
     });
 
     const networkSimulation = createNetworkSimulation(req);
-    socket.data = { player: null, room: null, networkSimulation };
+    const codec =
+      new URL(req.url, "http://localhost").searchParams.get("codec") ===
+      "binary"
+        ? "binary"
+        : "json";
+    socket.data = { player: null, room: null, networkSimulation, codec };
     socket.missedPongs = 0;
     socket.rateLimit = {
       tokens: config.limits.messageBurst,
@@ -94,13 +101,24 @@ export function setupWebSocket(httpServer, roomManager) {
       }
       socket.rateLimit.tokens -= 1;
 
+      let validation;
       if (isBinary) {
-        console.warn("Validation failed: binary WebSocket messages are not supported");
-        socket.close(4002, "Text messages required");
-        return;
-      }
+        if (codec !== "binary") {
+          console.warn("Validation failed: binary codec was not enabled");
+          socket.close(4002, "Binary codec not enabled");
+          return;
+        }
 
-      const validation = validateMessage(data);
+        try {
+          validation = validateInputMessage(decodeBinaryMessage(data));
+        } catch (error) {
+          console.warn("Validation failed: invalid binary message:", error.message);
+          socket.close(4002, "Invalid binary message");
+          return;
+        }
+      } else {
+        validation = validateMessage(data);
+      }
       if (!validation.valid) {
         console.warn("Validation failed:", validation.error);
         socket.close(4002, "Invalid message schema");
@@ -108,6 +126,11 @@ export function setupWebSocket(httpServer, roomManager) {
       }
 
       const msg = validation.msg;
+      if (codec === "binary" && msg.type === MessageTypes.INPUT && !isBinary) {
+        console.warn("Validation failed: binary input required by selected codec");
+        socket.close(4002, "Binary input required");
+        return;
+      }
 
       if (msg.type === MessageTypes.JOIN) {
         const { room: roomId, name: playerName } = msg;
@@ -148,7 +171,7 @@ export function setupWebSocket(httpServer, roomManager) {
           return;
         }
 
-        socket.data = { player, room, networkSimulation };
+        socket.data = { player, room, networkSimulation, codec };
         socket.send(
           encodeJsonMessage({
             type: MessageTypes.JOINED,
@@ -194,7 +217,7 @@ export function setupWebSocket(httpServer, roomManager) {
       if (room && player) {
         room.removePlayer(socket);
         console.log(`Player '${player.name}' left room ${room.id}`);
-        socket.data = { player: null, room: null, networkSimulation };
+        socket.data = { player: null, room: null, networkSimulation, codec };
       }
       networkSimulation.clear();
     });

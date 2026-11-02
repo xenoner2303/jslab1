@@ -11,3 +11,12 @@ angle += (Math.random() - 0.5) * 0.05; // only for the lab
 ![second](./screenshots/angle_norandomness.png)
 
 As we can see, at the second one correction is near 0, because client and server prediction usually coincides
+
+## M4 — JSON vs Binary measurements
+
+Test at 30 Hz with 4 players. Measure each codec under the same game conditions.
+
+| Codec | Bytes per snapshot | Down per client (KB/s) | Up per client (KB/s) | Encode + decode (µs) |
+|---|---:|---:|---:|---:|
+| JSON | — | — | — | — |
+| Binary (`DataView`) | — | — | — | — |

@@ -3,6 +3,7 @@ import { MatchLog } from "./log/matchlog.js";
 import { config } from "./config.js";
 import { Match } from "./match.js";
 import { encodeJsonMessage } from "../../shared/codec/json.js";
+import { encodeBinaryMessage } from "../../shared/codec/binary.js";
 
 export class Room extends EventEmitter {
   constructor(id, name, maxPlayers, logDir) {
@@ -82,7 +83,6 @@ export class Room extends EventEmitter {
   }
 
   broadcast(data, excludeSocket = null) {
-    const payload = encodeJsonMessage(data);
     for (const [socket] of this.players) {
       if (socket === excludeSocket || socket.readyState !== 1) {
         continue;
@@ -95,6 +95,10 @@ export class Room extends EventEmitter {
         continue;
       }
 
+      const payload =
+        data.type === "snapshot" && socket.data?.codec === "binary"
+          ? encodeBinaryMessage(data)
+          : encodeJsonMessage(data);
       const send = () => {
         if (socket.readyState === 1) socket.send(payload);
       };

@@ -71,31 +71,38 @@ class BinaryWriter {
   }
 
   writeUint8(value) {
-    this.view.setUint8(this.reserve(1), value);
+    const offset = this.reserve(1);
+    this.view.setUint8(offset, value);
   }
 
   writeInt8(value) {
-    this.view.setInt8(this.reserve(1), value);
+    const offset = this.reserve(1);
+    this.view.setInt8(offset, value);
   }
 
   writeUint16(value) {
-    this.view.setUint16(this.reserve(2), value, true);
+    const offset = this.reserve(2);
+    this.view.setUint16(offset, value, true);
   }
 
   writeInt16(value) {
-    this.view.setInt16(this.reserve(2), value, true);
+    const offset = this.reserve(2);
+    this.view.setInt16(offset, value, true);
   }
 
   writeUint32(value) {
-    this.view.setUint32(this.reserve(4), value, true);
+    const offset = this.reserve(4);
+    this.view.setUint32(offset, value, true);
   }
 
   writeFloat32(value) {
-    this.view.setFloat32(this.reserve(4), value, true);
+    const offset = this.reserve(4);
+    this.view.setFloat32(offset, value, true);
   }
 
   writeFloat64(value) {
-    this.view.setFloat64(this.reserve(8), value, true);
+    const offset = this.reserve(8);
+    this.view.setFloat64(offset, value, true);
   }
 
   writeString(value) {
