@@ -19,7 +19,11 @@ import {
   drawBarrierShield,
 } from './render/draw.js';
 import { configureCanvas } from './render/canvas.js';
-import { step } from '../../shared/config/settings.js';
+import {
+  arenaHeight,
+  arenaWidth,
+  step,
+} from '../../shared/config/settings.js';
 
 const hud = initHud();
 
@@ -167,6 +171,11 @@ function startGame(assets, canvasConfig, playerName, connection, playerId) {
   const maxInterpolationDelayMs = 500;
   let interpolationDelayMs = interpolationDelayStepMs * 2;
   let entities = [];
+  let predictedShip = null;
+  let correctionMagnitude = 0;
+  let correctionOffsetX = 0;
+  let correctionOffsetY = 0;
+  let correctionStartedAt = 0;
   let clientTick = 0;
   let inputSequence = 0;
   const interpolationDelayHud = document.querySelector('#interpolation-delay');
@@ -193,6 +202,9 @@ function startGame(assets, canvasConfig, playerName, connection, playerId) {
       }
     }
 
+    const authoritativeShip = entities.find(
+      (entity) => entity.kind === 'mainShip' && entity.playerId === playerId
+    );
     const acknowledgedSeq = snapshot.lastProcessedSeq?.[playerId];
     if (Number.isInteger(acknowledgedSeq)) {
       for (const seq of pendingInputs) {
@@ -207,6 +219,24 @@ function startGame(assets, canvasConfig, playerName, connection, playerId) {
       }
     }
   });
+
+  function applyPredictedInput(message) {
+    if (!predictedShip || !predictedShip.alive) return;
+
+    predictedShip = {
+      ...predictedShip,
+      ...integrateShip(predictedShip, message, step),
+    };
+    wrap(predictedShip, arenaWidth, arenaHeight);
+  }
+
+  function getCorrectionOffset(now) {
+    const remaining = Math.max(0, 1 - (now - correctionStartedAt) / 100);
+    return {
+      x: correctionOffsetX * remaining,
+      y: correctionOffsetY * remaining,
+    };
+  }
 
   function simulate(dt) {
     if (input.isJustPressed('BracketLeft')) {
@@ -269,6 +299,7 @@ function startGame(assets, canvasConfig, playerName, connection, playerId) {
           startY: launch.pos.y,
         });
       }
+      applyPredictedInput(message);
     }
 
     input.clearJustPressed();
@@ -308,7 +339,7 @@ function startGame(assets, canvasConfig, playerName, connection, playerId) {
     const localShip = entities.find(
       (entity) => entity.kind === 'mainShip' && entity.playerId === playerId
     );
-    hud.update(stats, localShip?.score ?? 0);
+    hud.update(stats, localShip?.score ?? 0, correctionMagnitude);
 
     ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
 
@@ -317,19 +348,34 @@ function startGame(assets, canvasConfig, playerName, connection, playerId) {
       if (!entity.alive) continue;
 
       if (entity.kind === 'mainShip') {
+        const isLocalShip = entity.playerId === playerId && predictedShip;
+        const shipToRender =
+          isLocalShip
+            ? {
+                ...entity,
+                x: predictedShip.pos.x + correctionOffset.x,
+                y: predictedShip.pos.y + correctionOffset.y,
+                pos: {
+                  x: predictedShip.pos.x + correctionOffset.x,
+                  y: predictedShip.pos.y + correctionOffset.y,
+                },
+                angle: predictedShip.angle,
+                thrust: predictedShip.thrust,
+              }
+            : entity;
         drawShip(
           ctx,
           {
-            x: entity.x,
-            y: entity.y,
-            angle: entity.angle,
-            thrust: entity.thrust,
+            x: shipToRender.x,
+            y: shipToRender.y,
+            angle: shipToRender.angle,
+            thrust: shipToRender.thrust,
             angleChange: 0,
             playerName: entity.playerName,
           },
           assets.ship
         );
-        if (entity.hasShield) drawBarrierShield(ctx, entity);
+        if (entity.hasShield) drawBarrierShield(ctx, shipToRender);
       } else if (entity.kind === 'miniRocket') {
         drawMiniRocket(ctx, entity);
       } else if (entity.kind === 'bliblie') {
