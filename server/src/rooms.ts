@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import type { WebSocket } from "ws";
-import { MatchLog } from "./log/matchlog.js";
+import { MatchLog } from "./log/matchlog.ts";
 import { config } from "./config.ts";
 import { Match } from "./match.ts";
 import { getCodec } from "../../shared/codec/index.ts";
@@ -32,16 +32,16 @@ type RoomEvents = {
       readonly time: number;
     },
   ];
-  event: [
-    event: Readonly<Record<string, unknown>> & {
-      readonly t: number;
-      readonly type: string;
-    },
-  ];
+  event: [event: RoomLogEvent];
   join: [event: { readonly socket: RoomSocket; readonly player: Player }];
   leave: [event: { readonly socket: RoomSocket; readonly player: Player }];
   empty: [room: Room];
   close: [];
+};
+
+export type RoomLogEvent = Readonly<Record<string, unknown>> & {
+  readonly t: number;
+  readonly type: string;
 };
 
 export class Room extends EventEmitter<RoomEvents> {
