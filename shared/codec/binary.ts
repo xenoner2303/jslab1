@@ -19,6 +19,9 @@
  */
 import {
   BinaryMessageSchema,
+  EntityIdSchema,
+  SeqSchema,
+  TickSchema,
   type BinaryMessage,
   type ClientInputMessage,
   type EntitySnapshot,
@@ -323,7 +326,7 @@ function writeEntity(writer: BinaryWriter, entity: EntitySnapshot): void {
 }
 
 function readEntity(reader: BinaryReader): EntitySnapshot {
-  const id = reader.readUint32();
+  const id = EntityIdSchema.parse(reader.readUint32());
   const kindNum = reader.readUint8();
   const kind = ENTITY_NAME_BY_KIND[kindNum];
   if (!kind) throw new TypeError("Unsupported binary entity kind");
@@ -370,7 +373,8 @@ function readEntity(reader: BinaryReader): EntitySnapshot {
     if (hasFireSeq > 1) {
       throw new TypeError("Invalid rocket sequence flag");
     }
-    const fireSeq = hasFireSeq === 1 ? reader.readUint32() : null;
+    const fireSeq =
+      hasFireSeq === 1 ? SeqSchema.parse(reader.readUint32()) : null;
     return {
       id,
       kind,
@@ -499,8 +503,8 @@ export function decodeBinaryMessage(data: ArrayBuffer | ArrayBufferView): Binary
   let message: BinaryMessage;
   switch (messageType) {
     case BinaryMessageTypes.INPUT: {
-      const seq = reader.readUint32();
-      const tick = reader.readUint32();
+      const seq = SeqSchema.parse(reader.readUint32());
+      const tick = TickSchema.parse(reader.readUint32());
       const thrust = reader.readInt8();
       const turn = reader.readInt8();
       const fire = reader.readUint8();
@@ -519,7 +523,7 @@ export function decodeBinaryMessage(data: ArrayBuffer | ArrayBufferView): Binary
       break;
     }
     case BinaryMessageTypes.SNAPSHOT: {
-      const tick = reader.readUint32();
+      const tick = TickSchema.parse(reader.readUint32());
       const seed = reader.readUint32();
       const serverTime = reader.readFloat64();
       const ackCount = reader.readUint8();
@@ -530,7 +534,7 @@ export function decodeBinaryMessage(data: ArrayBuffer | ArrayBufferView): Binary
         if (playerId === null) {
           throw new TypeError("Acknowledgement player id cannot be null");
         }
-        lastProcessedSeq[playerId] = reader.readUint32();
+        lastProcessedSeq[playerId] = SeqSchema.parse(reader.readUint32());
       }
       const entities = Array.from({ length: entityCount }, () =>
         readEntity(reader),

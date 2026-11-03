@@ -12,9 +12,23 @@ const serverConfigSchema = z.object({
   LOG_DIR: z.string().min(1).default("logs"),
 });
 
+export type ServerConfig = {
+  readonly port: number;
+  readonly host: string;
+  readonly logDir: string;
+  readonly limits: {
+    readonly messagesPerSecond: number;
+    readonly messageBurst: number;
+    readonly maxRooms: number;
+    readonly maxPlayersPerRoom: number;
+    readonly maxPayloadBytes: number;
+    readonly maxBufferedBytes: number;
+  };
+};
+
 const env = serverConfigSchema.parse(process.env);
 
-export const config = {
+export const config: ServerConfig = {
   port: env.PORT,
   host: env.HOST,
   logDir: path.resolve(process.cwd(), env.LOG_DIR),

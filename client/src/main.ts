@@ -47,10 +47,7 @@ type PredictedShip = Omit<
 type PredictedRocket = Pick<
   Extract<EntitySnapshot, { kind: 'miniRocket' }>,
   | 'kind'
-  | 'pos'
   | 'vel'
-  | 'x'
-  | 'y'
   | 'radius'
   | 'angle'
   | 'alive'
@@ -58,6 +55,9 @@ type PredictedRocket = Pick<
   | 'ownerPlayerId'
   | 'fireSeq'
 > & {
+  pos: { x: number; y: number };
+  x: number;
+  y: number;
   spawnedAt: number;
   startX: number;
   startY: number;
@@ -222,7 +222,7 @@ function startGame(
   const interpolationDelayStepMs = 1000 / 30;
   const maxInterpolationDelayMs = 500;
   let interpolationDelayMs = interpolationDelayStepMs * 2;
-  let entities: EntitySnapshot[] = [];
+  let entities: readonly EntitySnapshot[] = [];
   let predictedShip: PredictedShip | null = null;
   let correctionMagnitude = 0;
   let correctionOffsetX = 0;
@@ -413,8 +413,7 @@ function startGame(
       }
       rocket.x = rocket.startX + rocket.vel.x * elapsedSeconds;
       rocket.y = rocket.startY + rocket.vel.y * elapsedSeconds;
-      rocket.pos.x = rocket.x;
-      rocket.pos.y = rocket.y;
+      rocket.pos = { x: rocket.x, y: rocket.y };
     }
 
     const renderEntities: (EntitySnapshot | PredictedRocket)[] =

@@ -1,13 +1,24 @@
 import { z } from "zod";
 
-export type EntityId = number;
-export type Tick = number;
-export type Seq = number;
-
 const uint32 = z.number().int().min(0).max(0xffffffff);
-const entityId = uint32;
-const tick = uint32;
-const seq = uint32;
+export const EntityIdSchema = uint32.brand<"EntityId">();
+export const TickSchema = uint32.brand<"Tick">();
+export const SeqSchema = uint32.brand<"Seq">();
+export type EntityId = z.infer<typeof EntityIdSchema>;
+export type Tick = z.infer<typeof TickSchema>;
+export type Seq = z.infer<typeof SeqSchema>;
+type DeepReadonly<T> =
+  T extends string | number | boolean | bigint | symbol | null | undefined
+    ? T
+    : T extends readonly (infer Item)[]
+      ? readonly DeepReadonly<Item>[]
+      : T extends object
+        ? { readonly [Key in keyof T]: DeepReadonly<T[Key]> }
+        : T;
+
+const entityId = EntityIdSchema;
+const tick = TickSchema;
+const seq = SeqSchema;
 const nonEmptyString = (max: number) =>
   z.string().max(max).refine((value) => value.trim().length > 0);
 const vector = z.object({ x: z.number().finite(), y: z.number().finite() }).strict();
@@ -201,14 +212,26 @@ export type JoinMessage = z.infer<typeof JoinMessageSchema>;
 export type ClientInputMessage = z.infer<typeof InputMessageSchema>;
 export type ClientChatMessage = z.infer<typeof ClientChatMessageSchema>;
 export type ClientMessage = z.infer<typeof ClientMessageSchema>;
-export type EntitySnapshot = z.infer<typeof EntitySnapshotSchema>;
-export type SnapshotMessage = z.infer<typeof SnapshotMessageSchema>;
-export type JoinedMessage = z.infer<typeof JoinedMessageSchema>;
-export type ServerChatMessage = z.infer<typeof ServerChatMessageSchema>;
-export type RosterMessage = z.infer<typeof RosterMessageSchema>;
-export type ServerMessage = z.infer<typeof ServerMessageSchema>;
-export type ProtocolMessage = z.infer<typeof ProtocolMessageSchema>;
-export type BinaryMessage = z.infer<typeof BinaryMessageSchema>;
+export type EntitySnapshot = DeepReadonly<
+  z.infer<typeof EntitySnapshotSchema>
+>;
+export type SnapshotMessage = DeepReadonly<
+  z.infer<typeof SnapshotMessageSchema>
+>;
+export type JoinedMessage = DeepReadonly<z.infer<typeof JoinedMessageSchema>>;
+export type ServerChatMessage = DeepReadonly<
+  z.infer<typeof ServerChatMessageSchema>
+>;
+export type RosterMessage = DeepReadonly<z.infer<typeof RosterMessageSchema>>;
+export type ServerMessage = DeepReadonly<
+  z.infer<typeof ServerMessageSchema>
+>;
+export type ProtocolMessage = DeepReadonly<
+  z.infer<typeof ProtocolMessageSchema>
+>;
+export type BinaryMessage = DeepReadonly<
+  z.infer<typeof BinaryMessageSchema>
+>;
 
 export type ParseResult<T> =
   | { readonly success: true; readonly data: T }

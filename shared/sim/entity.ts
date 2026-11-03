@@ -1,4 +1,4 @@
-import type { EntityId } from "../codec/binary.ts";
+import { EntityIdSchema, type EntityId } from "../protocol.ts";
 import { Vector2 } from "./vector.ts";
 
 export type BehaviorContext = {
@@ -47,7 +47,7 @@ export class Entity {
       throw new Error('alive is not bool');
     }
 
-    this.id = Entity.#idNum++;
+    this.id = EntityIdSchema.parse(Entity.#idNum++);
     this.pos = pos;
     this.vel = vel;
     this.radius = radius;

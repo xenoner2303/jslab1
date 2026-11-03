@@ -1,6 +1,8 @@
 import { randomInt } from "node:crypto";
 import { performance } from "node:perf_hooks";
 import {
+  SeqSchema,
+  TickSchema,
   type EntitySnapshot,
   type Seq,
   type Tick,
@@ -129,7 +131,7 @@ export class Match {
       input,
       queuedInputs: [],
       lastReceivedSeq: 0,
-      lastProcessedSeq: 0,
+      lastProcessedSeq: SeqSchema.parse(0),
     });
 
     this.start();
@@ -230,7 +232,7 @@ export class Match {
     );
     const snapshot = {
       ...createSnapshotMessage(
-        this.tick,
+        TickSchema.parse(this.tick),
         lastProcessedSeq,
         entities,
       ),
