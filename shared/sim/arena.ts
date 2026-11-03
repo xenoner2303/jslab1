@@ -1,7 +1,7 @@
-import type { Vector2 } from "./vector.ts";
+import { Vector2 } from "./vector.ts";
 
 type MovableEntity = {
-  readonly pos: Vector2;
+  pos: Vector2;
   vel: Vector2;
 };
 
@@ -10,33 +10,47 @@ type BouncableEntity = MovableEntity & {
 };
 
 export function wrap(ship: MovableEntity, width: number, height: number): void {
-  if (ship.pos.x < 0) (ship.pos as { x: number; y: number }).x += width;
-  if (ship.pos.x > width) (ship.pos as { x: number; y: number }).x -= width;
-  if (ship.pos.y < 0) (ship.pos as { x: number; y: number }).y += height;
-  if (ship.pos.y > height) (ship.pos as { x: number; y: number }).y -= height;
+  let x = ship.pos.x;
+  let y = ship.pos.y;
+  if (x < 0) x += width;
+  if (x > width) x -= width;
+  if (y < 0) y += height;
+  if (y > height) y -= height;
+  if (x !== ship.pos.x || y !== ship.pos.y) {
+    ship.pos = new Vector2(x, y);
+  }
 }
 
 export function bounce(something: BouncableEntity, width: number, height: number): void {
-  const pos = something.pos as { x: number; y: number };
-  const vel = something.vel as { x: number; y: number };
+  let x = something.pos.x;
+  let y = something.pos.y;
+  let velX = something.vel.x;
+  let velY = something.vel.y;
 
-  if (pos.x - something.radius < 0) {
-    vel.x = Math.abs(vel.x);
-    pos.x = something.radius;
+  if (x - something.radius < 0) {
+    velX = Math.abs(velX);
+    x = something.radius;
   }
 
-  if (pos.x + something.radius > width) {
-    vel.x = -Math.abs(vel.x);
-    pos.x = width - something.radius;
+  if (x + something.radius > width) {
+    velX = -Math.abs(velX);
+    x = width - something.radius;
   }
 
-  if (pos.y - something.radius < 0) {
-    vel.y = Math.abs(vel.y);
-    pos.y = something.radius;
+  if (y - something.radius < 0) {
+    velY = Math.abs(velY);
+    y = something.radius;
   }
 
-  if (pos.y + something.radius > height) {
-    vel.y = -Math.abs(vel.y);
-    pos.y = height - something.radius;
+  if (y + something.radius > height) {
+    velY = -Math.abs(velY);
+    y = height - something.radius;
+  }
+
+  if (x !== something.pos.x || y !== something.pos.y) {
+    something.pos = new Vector2(x, y);
+  }
+  if (velX !== something.vel.x || velY !== something.vel.y) {
+    something.vel = new Vector2(velX, velY);
   }
 }

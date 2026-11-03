@@ -5,12 +5,14 @@ import {
   parseServerMessage,
 } from "./protocol.ts";
 import { getCodec } from "./codec/index.ts";
+import { Vector2 } from "./sim/vector.ts";
+import type { EntitySnapshot } from "./protocol.ts";
 
-const shipState = {
+const shipState: EntitySnapshot = {
   id: 1,
   kind: "mainShip",
-  pos: { x: 10, y: 20 },
-  vel: { x: 0, y: 0 },
+  pos: new Vector2(10, 20),
+  vel: new Vector2(0, 0),
   x: 10,
   y: 20,
   angle: 0,
@@ -21,7 +23,7 @@ const shipState = {
   thrust: 0,
   score: 0,
   hasShield: false,
-} as const;
+};
 
 test("client schema parses join, input, and chat messages", () => {
   assert.equal(parseClientMessage({ type: "join", room: "room-1", name: "Pilot" }).success, true);

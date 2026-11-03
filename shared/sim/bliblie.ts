@@ -7,8 +7,6 @@ export class BliBlie extends Entity {
   }
 
   update(dt: number): void {
-    const pos = this.pos as { x: number; y: number };
-    pos.x += this.vel.x * dt;
-    pos.y += this.vel.y * dt;
+    this.pos = this.pos.add(this.vel.scale(dt));
   }
 }

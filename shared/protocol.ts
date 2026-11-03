@@ -1,13 +1,13 @@
 import { z } from "zod";
 
-export type EntityId = number & { readonly __brand: "EntityId" };
-export type Tick = number & { readonly __brand: "Tick" };
-export type Seq = number & { readonly __brand: "Seq" };
+export type EntityId = number;
+export type Tick = number;
+export type Seq = number;
 
 const uint32 = z.number().int().min(0).max(0xffffffff);
-const entityId = uint32.transform((value) => value as EntityId);
-const tick = uint32.transform((value) => value as Tick);
-const seq = uint32.transform((value) => value as Seq);
+const entityId = uint32;
+const tick = uint32;
+const seq = uint32;
 const nonEmptyString = (max: number) =>
   z.string().max(max).refine((value) => value.trim().length > 0);
 const vector = z.object({ x: z.number().finite(), y: z.number().finite() }).strict();
@@ -23,18 +23,27 @@ const entityFields = {
   playerId: z.string().min(1).nullable(),
 };
 
-export const MessageTypes = {
+export const MessageTypes: {
+  readonly JOIN: "join";
+  readonly INPUT: "input";
+  readonly CHAT: "chat";
+} = {
   JOIN: "join",
   INPUT: "input",
   CHAT: "chat",
-} as const;
+};
 
-export const ServerMessageTypes = {
+export const ServerMessageTypes: {
+  readonly JOINED: "joined";
+  readonly SNAPSHOT: "snapshot";
+  readonly CHAT: "chat";
+  readonly ROSTER: "roster";
+} = {
   JOINED: "joined",
   SNAPSHOT: "snapshot",
   CHAT: "chat",
   ROSTER: "roster",
-} as const;
+};
 
 export const JoinMessageSchema = z
   .object({

@@ -3,7 +3,10 @@
   "compilerOptions": {
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "noEmit": true
+    "allowImportingTsExtensions": true,
+    "allowJs": true,
+    "noEmit": true,
+    "types": ["node"]
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*.ts"]
 }

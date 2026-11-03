@@ -8,6 +8,7 @@ import {
   rocketTtl,
 } from '../config/settings.ts';
 import type { Seq } from '../codec/binary.ts';
+import type { Ship } from './ship.ts';
 
 export type ShipLaunchSource = {
   readonly angle: number;
@@ -40,7 +41,7 @@ export function getMiniRocketLaunchState(ship: ShipLaunchSource): RocketLaunchSt
 
 export class MiniRocket extends Entity {
   #ttl: number = rocketTtl;
-  public owner: unknown;
+  public owner: Ship;
   public fireSeq: Seq | null;
 
   constructor(
@@ -48,7 +49,7 @@ export class MiniRocket extends Entity {
     vel: Vector2, 
     radius: number, 
     angle: number, 
-    owner: unknown, 
+    owner: Ship,
     fireSeq: Seq | null = null
   ) {
     super(pos, vel, radius, true, angle, 'miniRocket');

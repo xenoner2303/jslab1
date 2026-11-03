@@ -1,5 +1,8 @@
 import { lobbyRefresh } from '../../shared/config/settings.ts';
-import { GameConnection } from './connection.js';
+import { GameConnection } from './connection.ts';
+import { Bus } from './bus.ts';
+import { z } from 'zod';
+import type { EntitySnapshot, RosterMessage } from '../../shared/protocol.ts';
 
 export type Room = {
   readonly id: string;
@@ -8,13 +11,47 @@ export type Room = {
   readonly maxPlayers: number;
 };
 
-export class Lobby extends EventTarget {
+export type LobbyJoin = {
+  readonly room: Room;
+  readonly playerName: string;
+  readonly connection: GameConnection;
+  readonly playerId: string;
+  readonly spawnState: EntitySnapshot;
+  readonly roster: RosterMessage['players'];
+};
+
+type LobbyEvents = {
+  roomsupdated: { readonly rooms: readonly Room[] };
+  error: { readonly message: string };
+  loadingchange: { readonly isLoading: boolean };
+  joined: LobbyJoin;
+};
+
+const roomsResponseSchema = z.object({
+  rooms: z
+    .array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        currentPlayers: z.number().int().nonnegative(),
+        maxPlayers: z.number().int().positive(),
+      })
+    )
+    .nullable()
+    .optional(),
+});
+
+export class Lobby {
+  readonly #events = new Bus<LobbyEvents>();
   #rooms: Room[] = [];
   #refreshInterval: ReturnType<typeof setInterval> | null = null;
   #abortController: AbortController | null = null;
 
-  constructor() {
-    super();
+  on<Key extends keyof LobbyEvents>(
+    event: Key,
+    handler: (payload: LobbyEvents[Key]) => void
+  ): () => void {
+    return this.#events.on(event, handler);
   }
 
   get rooms(): readonly Room[] {
@@ -40,33 +77,21 @@ export class Lobby extends EventTarget {
         throw new Error(`HTTP error - ${response.status}`);
       }
 
-      const data = (await response.json()) as { rooms?: Room[] };
-
-      if (data.rooms == null) {
-        this.#rooms = [];
-      } else {
-        this.#rooms = data.rooms;
-      }
-
-      this.dispatchEvent(
-        new CustomEvent('roomsupdated', {
-          detail: { rooms: this.#rooms },
-        })
-      );
+      const result = roomsResponseSchema.safeParse(await response.json());
+      if (!result.success) throw new Error('Invalid room list response');
+      this.#rooms = result.data.rooms ?? [];
+      this.#events.emit('roomsupdated', { rooms: this.#rooms });
     } catch (error: unknown) {
       if (error instanceof Error && error.name === 'AbortError') {
         console.log('Room list request was aborted');
       } else {
-        const errMessage = error instanceof Error ? error.message : String(error);
+        const errMessage =
+          error instanceof Error ? error.message : String(error);
         console.log('Room downloading error:', error);
-        this.dispatchEvent(
-          new CustomEvent('error', { detail: { message: errMessage } })
-        );
+        this.#events.emit('error', { message: errMessage });
       }
     } finally {
-      this.dispatchEvent(
-        new CustomEvent('loadingchange', { detail: { isLoading: false } })
-      );
+      this.#events.emit('loadingchange', { isLoading: false });
     }
   }
 
@@ -107,7 +132,7 @@ export class Lobby extends EventTarget {
       throw new Error('Please enter player name');
     }
 
-    this.stopAutoRefresh(); 
+    this.stopAutoRefresh();
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const networkParams = new URLSearchParams(window.location.search);
@@ -121,12 +146,12 @@ export class Lobby extends EventTarget {
     const serializedParams = wsParams.toString();
     const networkQuery = serializedParams ? `?${serializedParams}` : '';
     const wsUrl = `${protocol}//${window.location.host}/ws${networkQuery}`;
-    
+
     const connection = new GameConnection(wsUrl);
     let hasJoined = false;
-    let latestRoster: unknown[] = [];
+    let latestRoster: RosterMessage['players'] = [];
 
-    connection.addEventListener('open', () => {
+    connection.on('open', () => {
       connection.send({
         type: 'join',
         room: selectedRoom.id,
@@ -134,38 +159,30 @@ export class Lobby extends EventTarget {
       });
     });
 
-    connection.addEventListener('roster', (event: Event) => {
-      const customEvent = event as CustomEvent<{ players: unknown[] }>;
-      latestRoster = customEvent.detail.players;
+    connection.on('roster', (roster) => {
+      latestRoster = roster.players;
     });
 
-    connection.addEventListener('joined', (event: Event) => {
+    connection.on('joined', (joined) => {
       if (hasJoined) {
         return;
       }
       hasJoined = true;
 
-      const customEvent = event as CustomEvent<{ playerId: string; state: unknown }>;
-
-      this.dispatchEvent(
-        new CustomEvent('joined', {
-          detail: {
-            room: selectedRoom,
-            playerName: playerName.trim(),
-            connection,
-            playerId: customEvent.detail.playerId,
-            spawnState: customEvent.detail.state,
-            roster: latestRoster,
-          },
-        })
-      );
+      this.#events.emit('joined', {
+        room: selectedRoom,
+        playerName: playerName.trim(),
+        connection,
+        playerId: joined.playerId,
+        spawnState: joined.state,
+        roster: latestRoster,
+      });
     });
 
-    connection.addEventListener('close', (event: Event) => {
+    connection.on('close', (event) => {
       if (hasJoined) return;
 
-      const customEvent = event as CustomEvent<{ code: number }>;
-      const code = customEvent.detail.code;
+      const code = event.code;
       const messages: Record<number, string> = {
         4001: 'Час очікування входу вичерпано',
         4004: 'Кімнату не знайдено',
@@ -173,26 +190,21 @@ export class Lobby extends EventTarget {
       };
       if (messages[code]) {
         connection.close();
-        this.dispatchEvent(
-          new CustomEvent('error', { detail: { message: messages[code] } })
-        );
+        const message = messages[code];
+        if (message) this.#events.emit('error', { message });
       }
     });
 
-    connection.addEventListener('error', () => {
-      this.dispatchEvent(
-        new CustomEvent('error', {
-          detail: { message: 'Не вдалося підключитися до ігрового сервера' },
-        })
-      );
+    connection.on('error', () => {
+      this.#events.emit('error', {
+        message: 'Не вдалося підключитися до ігрового сервера',
+      });
     });
 
-    connection.addEventListener('maxreconnect', () => {
-      this.dispatchEvent(
-        new CustomEvent('error', {
-          detail: { message: 'Не вдалося відновити з’єднання з сервером' },
-        })
-      );
+    connection.on('maxreconnect', () => {
+      this.#events.emit('error', {
+        message: 'Не вдалося відновити з’єднання з сервером',
+      });
     });
 
     connection.connect();

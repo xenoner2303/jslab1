@@ -1,4 +1,5 @@
 import {
+  InputMessageSchema,
   MessageTypes,
   ServerMessageTypes,
   type ClientInputMessage,
@@ -9,12 +10,18 @@ import {
 } from "../protocol.ts";
 
 export { MessageTypes, ServerMessageTypes };
-export type InputMessagePayload = Omit<ClientInputMessage, "type">;
+export type InputMessagePayload = {
+  readonly seq: number;
+  readonly tick: number;
+  readonly thrust: -1 | 0 | 1;
+  readonly turn: -1 | 0 | 1;
+  readonly fire: boolean;
+};
 
 export function createInputMessage(
   payload: InputMessagePayload,
 ): ClientInputMessage {
-  return { type: MessageTypes.INPUT, ...payload };
+  return InputMessageSchema.parse({ type: MessageTypes.INPUT, ...payload });
 }
 
 export function createSnapshotMessage(

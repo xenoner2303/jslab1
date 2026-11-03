@@ -38,18 +38,27 @@ export type {
 export type EntityId = EntitySnapshot["id"];
 export type InputMessage = ClientInputMessage;
 
-export const BinaryMessageTypes = {
+export const BinaryMessageTypes: {
+  readonly INPUT: 1;
+  readonly SNAPSHOT: 2;
+} = {
   INPUT: 1,
   SNAPSHOT: 2,
-} as const;
+};
 
-export const BinaryEntityKinds = {
+export const BinaryEntityKinds: {
+  readonly MAIN_SHIP: 1;
+  readonly MINI_ROCKET: 2;
+  readonly BLIBLIE: 3;
+  readonly EXPLOSION: 4;
+  readonly PICKUP: 5;
+} = {
   MAIN_SHIP: 1,
   MINI_ROCKET: 2,
   BLIBLIE: 3,
   EXPLOSION: 4,
   PICKUP: 5,
-} as const;
+};
 
 export const BINARY_PROTOCOL_VERSION = 1;
 
@@ -173,23 +182,39 @@ class BinaryReader {
     this.offset = 0;
   }
 
-  private read(method: keyof DataView, size: number, ...args: unknown[]): number {
+  private read(
+    size: number,
+    getter: (view: DataView, offset: number) => number,
+  ): number {
     if (this.offset + size > this.view.byteLength) {
       throw new RangeError("Binary message is truncated");
     }
-    const fn = this.view[method] as (...a: unknown[]) => number;
-    const value = fn.call(this.view, this.offset, ...args);
+    const value = getter(this.view, this.offset);
     this.offset += size;
     return value;
   }
 
-  readUint8(): number { return this.read("getUint8", 1); }
-  readInt8(): number { return this.read("getInt8", 1); }
-  readUint16(): number { return this.read("getUint16", 2, true); }
-  readInt16(): number { return this.read("getInt16", 2, true); }
-  readUint32(): number { return this.read("getUint32", 4, true); }
-  readFloat32(): number { return this.read("getFloat32", 4, true); }
-  readFloat64(): number { return this.read("getFloat64", 8, true); }
+  readUint8(): number {
+    return this.read(1, (view, offset) => view.getUint8(offset));
+  }
+  readInt8(): number {
+    return this.read(1, (view, offset) => view.getInt8(offset));
+  }
+  readUint16(): number {
+    return this.read(2, (view, offset) => view.getUint16(offset, true));
+  }
+  readInt16(): number {
+    return this.read(2, (view, offset) => view.getInt16(offset, true));
+  }
+  readUint32(): number {
+    return this.read(4, (view, offset) => view.getUint32(offset, true));
+  }
+  readFloat32(): number {
+    return this.read(4, (view, offset) => view.getFloat32(offset, true));
+  }
+  readFloat64(): number {
+    return this.read(8, (view, offset) => view.getFloat64(offset, true));
+  }
 
   readString(): string | null {
     const length = this.readUint8();
@@ -218,6 +243,10 @@ function assertInteger(value: number, max: number, field: string): void {
   if (!Number.isInteger(value) || value < 0 || value > max) {
     throw new RangeError(`${field} must be an integer from 0 to ${max}`);
   }
+}
+
+function isAxisInput(value: number): value is -1 | 0 | 1 {
+  return value === -1 || value === 0 || value === 1;
 }
 
 function writeFiniteFloat32(writer: BinaryWriter, value: number, field: string): void {
@@ -294,7 +323,7 @@ function writeEntity(writer: BinaryWriter, entity: EntitySnapshot): void {
 }
 
 function readEntity(reader: BinaryReader): EntitySnapshot {
-  const id = reader.readUint32() as EntityId;
+  const id = reader.readUint32();
   const kindNum = reader.readUint8();
   const kind = ENTITY_NAME_BY_KIND[kindNum];
   if (!kind) throw new TypeError("Unsupported binary entity kind");
@@ -341,7 +370,7 @@ function readEntity(reader: BinaryReader): EntitySnapshot {
     if (hasFireSeq > 1) {
       throw new TypeError("Invalid rocket sequence flag");
     }
-    const fireSeq = hasFireSeq === 1 ? (reader.readUint32() as Seq) : null;
+    const fireSeq = hasFireSeq === 1 ? reader.readUint32() : null;
     return {
       id,
       kind,
@@ -470,12 +499,12 @@ export function decodeBinaryMessage(data: ArrayBuffer | ArrayBufferView): Binary
   let message: BinaryMessage;
   switch (messageType) {
     case BinaryMessageTypes.INPUT: {
-      const seq = reader.readUint32() as Seq;
-      const tick = reader.readUint32() as Tick;
+      const seq = reader.readUint32();
+      const tick = reader.readUint32();
       const thrust = reader.readInt8();
       const turn = reader.readInt8();
       const fire = reader.readUint8();
-      if (![-1, 0, 1].includes(thrust) || ![-1, 0, 1].includes(turn)) {
+      if (!isAxisInput(thrust) || !isAxisInput(turn)) {
         throw new TypeError("Invalid binary input values");
       }
       if (fire > 1) throw new TypeError("Invalid binary fire flag");
@@ -483,14 +512,14 @@ export function decodeBinaryMessage(data: ArrayBuffer | ArrayBufferView): Binary
         type: "input",
         seq,
         tick,
-        thrust: thrust as -1 | 0 | 1,
-        turn: turn as -1 | 0 | 1,
+        thrust,
+        turn,
         fire: fire === 1,
       };
       break;
     }
     case BinaryMessageTypes.SNAPSHOT: {
-      const tick = reader.readUint32() as Tick;
+      const tick = reader.readUint32();
       const seed = reader.readUint32();
       const serverTime = reader.readFloat64();
       const ackCount = reader.readUint8();
@@ -501,7 +530,7 @@ export function decodeBinaryMessage(data: ArrayBuffer | ArrayBufferView): Binary
         if (playerId === null) {
           throw new TypeError("Acknowledgement player id cannot be null");
         }
-        lastProcessedSeq[playerId] = reader.readUint32() as Seq;
+        lastProcessedSeq[playerId] = reader.readUint32();
       }
       const entities = Array.from({ length: entityCount }, () =>
         readEntity(reader),

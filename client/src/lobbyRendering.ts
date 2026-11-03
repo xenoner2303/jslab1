@@ -1,19 +1,44 @@
-import type { Lobby, Room } from "./lobby.js";
+import type { Lobby, Room } from './lobby.ts';
+
+function getErrorMessage(data: unknown): string | undefined {
+  if (
+    typeof data === 'object' &&
+    data !== null &&
+    'error' in data &&
+    typeof data.error === 'string'
+  ) {
+    return data.error;
+  }
+  return undefined;
+}
 
 export function initLobbyRendering(lobby: Lobby): void {
-  const nameInput = document.querySelector('#player-name-input') as HTMLInputElement | null;
-  const roomsContainer = document.querySelector('#rooms-container') as HTMLElement | null;
-  const refreshBtn = document.querySelector('#refresh-rooms-btn') as HTMLButtonElement | null;
-  const errorDiv = document.querySelector('#lobby-error') as HTMLElement | null;
-
-  const createRoomBtn = document.querySelector('#create-room-btn') as HTMLButtonElement | null;
-  const newRoomNameInput = document.querySelector('#new-room-name') as HTMLInputElement | null;
-  const newRoomMaxInput = document.querySelector('#new-room-max') as HTMLInputElement | null;
+  const nameInput =
+    document.querySelector<HTMLInputElement>('#player-name-input');
+  const roomsContainer =
+    document.querySelector<HTMLElement>('#rooms-container');
+  const refreshBtn =
+    document.querySelector<HTMLButtonElement>('#refresh-rooms-btn');
+  const errorDiv = document.querySelector<HTMLElement>('#lobby-error');
+  const createRoomBtn =
+    document.querySelector<HTMLButtonElement>('#create-room-btn');
+  const newRoomNameInput =
+    document.querySelector<HTMLInputElement>('#new-room-name');
+  const newRoomMaxInput =
+    document.querySelector<HTMLInputElement>('#new-room-max');
 
   let selectedRoomId: string | null = null;
 
-  if (!createRoomBtn || !newRoomNameInput || !newRoomMaxInput || !errorDiv || !roomsContainer || !refreshBtn || !nameInput) {
-    console.error("Lobby DOM elements not found");
+  if (
+    !createRoomBtn ||
+    !newRoomNameInput ||
+    !newRoomMaxInput ||
+    !errorDiv ||
+    !roomsContainer ||
+    !refreshBtn ||
+    !nameInput
+  ) {
+    console.error('Lobby DOM elements not found');
     return;
   }
 
@@ -40,29 +65,27 @@ export function initLobbyRendering(lobby: Lobby): void {
       });
 
       if (!response.ok) {
-        const result = (await response.json()) as { error?: string };
-        throw new Error(result.error || 'Не вдалося створити кімнату');
+        const message = getErrorMessage(await response.json());
+        throw new Error(message || 'Не вдалося створити кімнату');
       }
 
       newRoomNameInput.value = '';
       await lobby.refresh();
     } catch (err: unknown) {
-      errorMessage.textContent = err instanceof Error ? err.message : String(err);
+      errorMessage.textContent =
+        err instanceof Error ? err.message : String(err);
     } finally {
       createRoomBtn.disabled = false;
     }
   });
 
-  lobby.addEventListener('roomsupdated', (event: Event) => {
-    const customEvent = event as CustomEvent<{ rooms: Room[] }>;
-    const rooms = customEvent.detail.rooms;
+  lobby.on('roomsupdated', ({ rooms }) => {
     renderRooms(rooms);
     errorDiv.textContent = '';
   });
 
-  lobby.addEventListener('error', (event: Event) => {
-    const customEvent = event as CustomEvent<{ message: string }>;
-    errorMessage.textContent = customEvent.detail.message;
+  lobby.on('error', ({ message }) => {
+    errorMessage.textContent = message;
   });
 
   refreshBtn.addEventListener('click', () => {
@@ -105,7 +128,8 @@ export function initLobbyRendering(lobby: Lobby): void {
       const joinBtn = document.createElement('button');
       joinBtn.type = 'button';
       joinBtn.className = 'join-btn';
-      joinBtn.textContent = availableSeats === 0 ? 'Кімната повна' : 'Приєднатися';
+      joinBtn.textContent =
+        availableSeats === 0 ? 'Кімната повна' : 'Приєднатися';
       joinBtn.disabled = availableSeats === 0;
       roomCard.appendChild(joinBtn);
 
@@ -114,7 +138,8 @@ export function initLobbyRendering(lobby: Lobby): void {
         try {
           lobby.join(room.id, playerName);
         } catch (err: unknown) {
-          errorMessage.textContent = err instanceof Error ? err.message : String(err);
+          errorMessage.textContent =
+            err instanceof Error ? err.message : String(err);
         }
       });
 
