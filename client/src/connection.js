@@ -1,20 +1,44 @@
+import {
+  decodeJsonMessage,
+  encodeJsonMessage,
+} from '../../shared/codec/json.js';
+import {
+  decodeBinaryMessage,
+  encodeBinaryMessage,
+} from '../../shared/codec/binary.js';
+
 export class GameConnection extends EventTarget {
   #url;
+  #codec;
   #socket = null;
   #sendQueue = [];
   #reconnectAttempts = 0;
   #maxReconnectAttempts = 5;
   #reconnectTimeout = null;
   #isIntentionalClose = false;
+  #bytesIn = 0;
+  #bytesOut = 0;
 
   constructor(url) {
     super();
     this.#url = url;
+    this.#codec = new URL(url).searchParams.get('codec') === 'binary'
+      ? 'binary'
+      : 'json';
+  }
+
+  get bytesIn() {
+    return this.#bytesIn;
+  }
+
+  get bytesOut() {
+    return this.#bytesOut;
   }
 
   connect() {
     this.#isIntentionalClose = false;
     const socket = new WebSocket(this.#url);
+    socket.binaryType = 'arraybuffer';
     this.#socket = socket;
 
     socket.addEventListener('open', () => {
@@ -24,13 +48,20 @@ export class GameConnection extends EventTarget {
 
       while (this.#sendQueue.length > 0) {
         const payload = this.#sendQueue.shift();
-        socket.send(JSON.stringify(payload));
+        this.#sendPayload(socket, payload);
       }
     });
 
     socket.addEventListener('message', (event) => {
       try {
-        const data = JSON.parse(event.data);
+        const data =
+          event.data instanceof ArrayBuffer
+            ? decodeBinaryMessage(event.data)
+            : decodeJsonMessage(event.data);
+        this.#bytesIn +=
+          typeof event.data === 'string'
+            ? new TextEncoder().encode(event.data).byteLength
+            : event.data.byteLength;
 
         if (data.type) {
           this.dispatchEvent(new CustomEvent(data.type, { detail: data }));
@@ -57,10 +88,26 @@ export class GameConnection extends EventTarget {
 
   send(data, { queueIfDisconnected = true } = {}) {
     if (this.#socket && this.#socket.readyState === WebSocket.OPEN) {
-      this.#socket.send(JSON.stringify(data));
+      this.#sendPayload(this.#socket, data);
+      return true;
     } else if (queueIfDisconnected && !this.#isIntentionalClose) {
       this.#sendQueue.push(data);
+      return true;
     }
+    return false;
+  }
+
+  #sendPayload(socket, data) {
+    const useBinary =
+      this.#codec === 'binary' && data.type === 'input';
+    const payload = useBinary
+      ? encodeBinaryMessage(data)
+      : encodeJsonMessage(data);
+    this.#bytesOut +=
+      typeof payload === 'string'
+        ? new TextEncoder().encode(payload).byteLength
+        : payload.byteLength;
+    socket.send(payload);
   }
 
   close() {

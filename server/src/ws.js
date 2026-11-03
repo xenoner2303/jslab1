@@ -1,7 +1,47 @@
 import { WebSocket, WebSocketServer } from "ws";
 import { performance } from "node:perf_hooks";
 import { validateMessage, MessageTypes } from "./protocol.js";
+import { validateInputMessage } from "../../shared/protocol/messages.js";
+import { decodeBinaryMessage } from "../../shared/codec/binary.js";
 import { config } from "./config.js";
+import { encodeJsonMessage } from "../../shared/codec/json.js";
+
+function createNetworkSimulation(req) {
+  const params = new URL(req.url, "http://localhost").searchParams;
+  const boundedNumber = (name, fallback, min, max) => {
+    const value = Number(params.get(name));
+    return Number.isFinite(value)
+      ? Math.max(min, Math.min(max, value))
+      : fallback;
+  };
+  const latencyMs = boundedNumber("latencyMs", 0, 0, 2000);
+  const jitterMs = boundedNumber("jitterMs", 0, 0, 1000);
+  const dropRate = boundedNumber("dropRate", 0, 0, 0.25);
+  const nextDeliveryAt = { incoming: 0, outgoing: 0 };
+  const timers = new Set();
+
+  return {
+    settings: { latencyMs, jitterMs, dropRate },
+    schedule(direction, callback) {
+      if (Math.random() < dropRate) return false;
+
+      const jitter = (Math.random() * 2 - 1) * jitterMs;
+      const requestedAt = performance.now() + Math.max(0, latencyMs + jitter);
+      const deliveryAt = Math.max(requestedAt, nextDeliveryAt[direction]);
+      nextDeliveryAt[direction] = deliveryAt;
+      const timer = setTimeout(() => {
+        timers.delete(timer);
+        callback();
+      }, Math.max(0, deliveryAt - performance.now()));
+      timers.add(timer);
+      return true;
+    },
+    clear() {
+      for (const timer of timers) clearTimeout(timer);
+      timers.clear();
+    },
+  };
+}
 
 export function setupWebSocket(httpServer, roomManager) {
   const wss = new WebSocketServer({
@@ -14,7 +54,13 @@ export function setupWebSocket(httpServer, roomManager) {
       console.error("Socket error encountered:", err);
     });
 
-    socket.data = { player: null, room: null };
+    const networkSimulation = createNetworkSimulation(req);
+    const codec =
+      new URL(req.url, "http://localhost").searchParams.get("codec") ===
+      "binary"
+        ? "binary"
+        : "json";
+    socket.data = { player: null, room: null, networkSimulation, codec };
     socket.missedPongs = 0;
     socket.rateLimit = {
       tokens: config.limits.messageBurst,
@@ -55,13 +101,24 @@ export function setupWebSocket(httpServer, roomManager) {
       }
       socket.rateLimit.tokens -= 1;
 
+      let validation;
       if (isBinary) {
-        console.warn("Validation failed: binary WebSocket messages are not supported");
-        socket.close(4002, "Text messages required");
-        return;
-      }
+        if (codec !== "binary") {
+          console.warn("Validation failed: binary codec was not enabled");
+          socket.close(4002, "Binary codec not enabled");
+          return;
+        }
 
-      const validation = validateMessage(data);
+        try {
+          validation = validateInputMessage(decodeBinaryMessage(data));
+        } catch (error) {
+          console.warn("Validation failed: invalid binary message:", error.message);
+          socket.close(4002, "Invalid binary message");
+          return;
+        }
+      } else {
+        validation = validateMessage(data);
+      }
       if (!validation.valid) {
         console.warn("Validation failed:", validation.error);
         socket.close(4002, "Invalid message schema");
@@ -69,6 +126,11 @@ export function setupWebSocket(httpServer, roomManager) {
       }
 
       const msg = validation.msg;
+      if (codec === "binary" && msg.type === MessageTypes.INPUT && !isBinary) {
+        console.warn("Validation failed: binary input required by selected codec");
+        socket.close(4002, "Binary input required");
+        return;
+      }
 
       if (msg.type === MessageTypes.JOIN) {
         const { room: roomId, name: playerName } = msg;
@@ -79,7 +141,7 @@ export function setupWebSocket(httpServer, roomManager) {
             return;
           }
           socket.send(
-            JSON.stringify({
+            encodeJsonMessage({
               type: MessageTypes.JOINED,
               playerId: socket.data.player.id,
               state: socket.data.player.state,
@@ -109,12 +171,13 @@ export function setupWebSocket(httpServer, roomManager) {
           return;
         }
 
-        socket.data = { player, room };
+        socket.data = { player, room, networkSimulation, codec };
         socket.send(
-          JSON.stringify({
+          encodeJsonMessage({
             type: MessageTypes.JOINED,
             playerId: player.id,
             state: player.state,
+            seed: room.match.seed,
           })
         );
         console.log(`Player '${playerName}' joined room ${room.id}`);
@@ -137,23 +200,14 @@ export function setupWebSocket(httpServer, roomManager) {
         return;
       }
 
-      if (msg.type === MessageTypes.STATE) {
-        player.state = {
-          x: msg.x,
-          y: msg.y,
-          angle: msg.angle,
-          thrust: msg.thrust,
-          alive: msg.alive,
-        };
-        room.broadcast(
-          {
-            type: MessageTypes.STATE,
-            playerId: player.id,
-            playerName: player.name,
-            ...player.state,
-          },
-          socket
-        );
+      if (msg.type === MessageTypes.INPUT) {
+        networkSimulation.schedule("incoming", () => {
+          if (!room.match.enqueueInput(player.id, msg)) {
+            console.warn(
+              `Dropped stale or queued input ${msg.seq} from player '${player.name}'`
+            );
+          }
+        });
       }
     });
 
@@ -163,8 +217,9 @@ export function setupWebSocket(httpServer, roomManager) {
       if (room && player) {
         room.removePlayer(socket);
         console.log(`Player '${player.name}' left room ${room.id}`);
-        socket.data = { player: null, room: null };
+        socket.data = { player: null, room: null, networkSimulation, codec };
       }
+      networkSimulation.clear();
     });
   });
 

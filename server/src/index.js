@@ -7,6 +7,10 @@ import { fileURLToPath } from "node:url";
 import { config } from "./config.js";
 import { RoomManager } from "./rooms.js";
 import { setupWebSocket } from "./ws.js";
+import {
+  arenaWidth,
+  arenaHeight,
+} from "../../shared/config/settings.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -65,6 +69,12 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (req.method === "GET" && pathname === "/api/stats") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(roomManager.getStats()));
+      return;
+    }
+
     if (req.method === "GET" && pathname === "/api/slow") {
       const start = process.hrtime.bigint();
       const delayNanoseconds = 3_000_000_000n;
@@ -82,7 +92,7 @@ const server = http.createServer(async (req, res) => {
             name: r.name,
             maxPlayers: r.maxPlayers,
             currentPlayers: r.players.size,
-            arenaConfig: { width: 1200, height: 800 }
+            arenaConfig: { width: arenaWidth, height: arenaHeight }
         }));
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ rooms: roomList }));

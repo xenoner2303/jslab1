@@ -3,7 +3,7 @@ import { Entity } from './entity.js';
 import { Vector2 } from './vector.js';
 import { applyHoming } from './homing.js';
 import { bounce } from './arena.js';
-import { MiniRocket } from './miniRocket.js';
+import { MiniRocket, getMiniRocketLaunchState } from './miniRocket.js';
 import { entitiesCollision, checkSpot } from './collision.js';
 import { Explosion } from './explosion.js';
 import {
@@ -12,23 +12,21 @@ import {
   maxBliblieSpeed,
   bliblieHeight,
   bliblieWidth,
-  miniRocketSpeed,
   damageFromObjects,
   damageFromMiniRocket,
-  miniRocketHeight,
-  miniRocketWidth,
   shieldWidth,
   shieldHeight,
   bliblieScreamTimer,
-} from '../../config/settings.js';
+} from '../config/settings.js';
 import { Pickup } from './pickup.js';
+import { createSeededRandom } from './prng.js';
 
 class World extends EventTarget {
   #entities = new Map(); // entities storage/ key - id
   #pickupItems = ['shield'];
   #shipKillCount = new Map();
 
-  constructor(width, height) {
+  constructor(width, height, seed = 12345) {
     if (!Number.isFinite(width) || !Number.isFinite(height)) {
       throw new Error('Trying to create world entity with no num edges');
     }
@@ -37,21 +35,23 @@ class World extends EventTarget {
 
     this.width = width;
     this.height = height;
+    this.seed = seed >>> 0;
+    this.random = createSeededRandom(this.seed);
     this.bliblieScreamTimer = bliblieScreamTimer;
   }
 
   #getRandomFreeSpot(radius) {
     let potentialSpot = new Vector2(
-      Math.random() * this.width,
-      Math.random() * this.height
+      this.random() * this.width,
+      this.random() * this.height
     );
     const aliveEntities = [...this].filter((e) => e.alive);
     // const [one, two] = [1, 2];
 
     while (!checkSpot(potentialSpot, radius, aliveEntities)) {
       potentialSpot = new Vector2(
-        Math.random() * this.width,
-        Math.random() * this.height
+        this.random() * this.width,
+        this.random() * this.height
       );
     }
 
@@ -76,6 +76,10 @@ class World extends EventTarget {
     if (entity != null) {
       entity.alive = false;
     }
+  }
+
+  remove(id) {
+    this.#entities.delete(id);
   }
 
   get(id) {
@@ -142,12 +146,12 @@ class World extends EventTarget {
       const difference = blibliesCount - localBlibliesCount;
 
       for (let i = 0; i < difference; i++) {
-        const speedXDirection = Math.random() < 0.5 ? 1 : -1;
-        const speedYDirection = Math.random() < 0.5 ? 1 : -1;
+        const speedXDirection = this.random() < 0.5 ? 1 : -1;
+        const speedYDirection = this.random() < 0.5 ? 1 : -1;
 
         const newVelocity = new Vector2(
-          Math.random() * maxBliblieSpeed * speedXDirection,
-          Math.random() * maxBliblieSpeed * speedYDirection
+          this.random() * maxBliblieSpeed * speedXDirection,
+          this.random() * maxBliblieSpeed * speedYDirection
         );
 
         const bliblieRadius =
@@ -170,7 +174,7 @@ class World extends EventTarget {
       for (let i = 0; i < difference; i++) {
         const itemType =
           this.#pickupItems[
-            Math.floor(Math.random() * this.#pickupItems.length)
+            Math.floor(this.random() * this.#pickupItems.length)
           ];
 
         if (itemType == 'shield') {
@@ -188,20 +192,16 @@ class World extends EventTarget {
       if (entity.fireRequested) {
         entity.fireRequested = false;
 
-        const direction = Vector2.fromAngle(entity.angle); // for direction
-        const rocketRadius =
-          Math.sqrt(miniRocketWidth ** 2 + miniRocketHeight ** 2) / 2; // rectangle diag formula
-        const spawnDistance = entity.radius + rocketRadius + 2; // ro avoid collisison riocket iisue
-        const shipNose = entity.pos.add(direction.scale(spawnDistance)); // receive new Vector2
-        const rocketVelocity = direction.scale(miniRocketSpeed);
-
+        const launch = getMiniRocketLaunchState(entity);
         const miniRocket = new MiniRocket(
-          shipNose,
-          rocketVelocity,
-          rocketRadius,
-          entity.angle,
-          entity
+          launch.pos,
+          launch.vel,
+          launch.radius,
+          launch.angle,
+          entity,
+          entity.fireSequence
         );
+        entity.fireSequence = null;
         miniRocket.behaviors.push(applyHoming);
         this.spawn(miniRocket);
 
@@ -269,7 +269,7 @@ class World extends EventTarget {
         const bliblie = a.kind == 'bliblie' ? a : b;
 
         if (ship.hit(damageFromObjects)) {
-          this.spawn(new Explosion(ship.pos));
+          this.spawn(new Explosion(ship.pos, this.random));
           this.#shipKillCount.set(ship, 0);
           this.dispatchEvent(new CustomEvent('exploded'));
         }
@@ -286,7 +286,7 @@ class World extends EventTarget {
         const rocket = a.kind == 'miniRocket' ? a : b;
 
         if (rocket.owner != ship && ship.hit(damageFromMiniRocket)) {
-          this.spawn(new Explosion(ship.pos));
+          this.spawn(new Explosion(ship.pos, this.random));
           this.#shipKillCount.set(rocket.owner, 0);
           this.dispatchEvent(new CustomEvent('exploded'));
         }

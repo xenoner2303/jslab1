@@ -1,15 +1,16 @@
 import { createInput } from './input.js';
-import { getAngleDelta } from './supFunctions.js';
 import { createLoop } from './loop.js';
-import { Ship } from './sim/ship.js';
-import { World } from './sim/world.js';
-import { Vector2 } from './sim/vector.js';
-import { wrap } from './sim/arena.js';
 import { loadAll } from '../public/assets/loader.js';
-import { initAudio } from './sim/audio.js';
-import { initHud } from './sim/hud.js';
-import { Lobby } from './sim/lobby.js';
-import { initLobbyRendering } from './sim/lobbyRendering.js';
+import { initAudio } from '../../shared/sim/audio.js';
+import { initHud } from '../../shared/sim/hud.js';
+import { Lobby } from '../../shared/sim/lobby.js';
+import { initLobbyRendering } from '../../shared/sim/lobbyRendering.js';
+import { getMiniRocketLaunchState } from '../../shared/sim/miniRocket.js';
+import { createInputMessage } from '../../shared/protocol/messages.js';
+import { integrateShip } from '../../shared/sim/integrate.js';
+import { wrap } from '../../shared/sim/arena.js';
+import { rocketTtl } from '../../shared/config/settings.js';
+import { getInterpolatedEntities } from './interpolation.js';
 import {
   drawShip,
   drawGrid,
@@ -20,7 +21,11 @@ import {
   drawBarrierShield,
 } from './render/draw.js';
 import { configureCanvas } from './render/canvas.js';
-import { step, shipWidth, shipHeight } from '../config/settings.js';
+import {
+  arenaHeight,
+  arenaWidth,
+  step,
+} from '../../shared/config/settings.js';
 
 const hud = initHud();
 
@@ -58,30 +63,6 @@ async function initGame(room, playerName, connection, joinData) {
   const chatMessages = document.getElementById('chat-messages');
   const chatForm = document.getElementById('chat-form');
   const chatInput = document.getElementById('chat-input');
-  const remotePlayers = new Map();
-  let localPlayerId = joinData.playerId;
-  let localSpawnState = joinData.spawnState;
-
-  function updateRoster(players) {
-    remotePlayers.clear();
-    for (const player of players) {
-      if (player.id !== localPlayerId && player.state) {
-        remotePlayers.set(player.id, { ...player.state, playerName: player.name });
-      }
-    }
-  }
-
-  updateRoster(joinData.roster);
-
-  connection.addEventListener('roster', (event) => {
-    updateRoster(event.detail.players);
-  });
-
-  connection.addEventListener('joined', (event) => {
-    localPlayerId = event.detail.playerId;
-    localSpawnState = event.detail.state;
-    remotePlayers.delete(localPlayerId);
-  });
 
   connection.addEventListener('chat', (event) => {
     const message = document.createElement('p');
@@ -107,13 +88,6 @@ async function initGame(room, playerName, connection, joinData) {
 
     connection.send({ type: 'chat', text });
     chatInput.value = '';
-  });
-
-  connection.addEventListener('state', (event) => {
-    const { playerId, playerName, ...state } = event.detail;
-    if (playerId !== localPlayerId) {
-      remotePlayers.set(playerId, { ...state, playerName });
-    }
   });
 
   let audioCtx = null; // for browser audio
@@ -155,38 +129,17 @@ async function initGame(room, playerName, connection, joinData) {
 
       cancelBtn.style.display = 'none';
       cancelBtn.onclick = null;
-      const audio = initAudio(audioCtx, assets);
-
-      const arenaWidth = room.arenaConfig.width;
-      const arenaHeight = room.arenaConfig.height;
-      const world = new World(arenaWidth, arenaHeight);
+      initAudio(audioCtx, assets);
       chatPanel.style.display = 'flex';
-
-      world.addEventListener('shoot', () => audio.playShoot());
-      world.addEventListener('exploded', () => audio.playExplosion());
-      world.addEventListener('hit', (event) =>
-        audio.playHit(event.detail.type)
-      );
-      world.addEventListener('environment', (event) =>
-        audio.playEnvironmentSound(event.detail.type)
-      );
-      world.addEventListener('kill', (event) => {
-        audio.playKillJoke(event.detail.count, event.detail.type);
-        hud.showKillMessage(event.detail.count);
-      });
 
       loadingScreen.style.display = 'none';
 
       startGame(
-        world,
         assets,
         canvasConfig,
-        arenaWidth,
-        arenaHeight,
         playerName,
         connection,
-        remotePlayers,
-        () => localSpawnState
+        joinData.playerId
       );
     } catch (error) {
       cancelBtn.style.display = 'none';
@@ -211,65 +164,190 @@ async function initGame(room, playerName, connection, joinData) {
   await loadGame();
 }
 
-function startGame(
-  world,
-  assets,
-  canvasConfig,
-  arenaWidth,
-  arenaHeight,
-  playerName,
-  connection,
-  remotePlayers,
-  getSpawnState
-) {
+function startGame(assets, canvasConfig, playerName, connection, playerId) {
   const input = createInput(window);
+  const pendingInputs = new Map();
+  const predictedRockets = new Map();
+  const snapshotBuffer = [];
+  const interpolationDelayStepMs = 1000 / 30;
+  const maxInterpolationDelayMs = 500;
+  let interpolationDelayMs = interpolationDelayStepMs * 2;
+  let entities = [];
+  let predictedShip = null;
+  let correctionMagnitude = 0;
+  let correctionOffsetX = 0;
+  let correctionOffsetY = 0;
+  let correctionStartedAt = 0;
+  let clientTick = 0;
+  let inputSequence = 0;
+  const interpolationDelayHud = document.querySelector('#interpolation-delay');
 
-  const spawnState = getSpawnState();
-  const startMainShipPos = new Vector2(
-    spawnState?.x ?? arenaWidth / 2,
-    spawnState?.y ?? arenaHeight / 2
-  );
+  connection.addEventListener('snapshot', (event) => {
+    const snapshot = event.detail;
+    entities = snapshot.entities;
+    const receivedAt = performance.now();
+    snapshotBuffer.push({
+      receivedAt,
+      entities: snapshot.entities,
+    });
+    while (snapshotBuffer.length > 30) {
+      snapshotBuffer.shift();
+    }
 
-  const mainShipRadius = Math.sqrt(shipWidth ** 2 + shipHeight ** 2) / 2; // rectangle diag formula
+    for (const entity of snapshot.entities) {
+      if (
+        entity.kind === 'miniRocket' &&
+        entity.ownerPlayerId === playerId &&
+        Number.isInteger(entity.fireSeq)
+      ) {
+        predictedRockets.delete(entity.fireSeq);
+      }
+    }
 
-  let mainShip = new Ship(
-    startMainShipPos,
-    new Vector2(0, 0),
-    mainShipRadius,
-    spawnState?.angle ?? 0,
-    input,
-    playerName
-  );
-  world.spawn(mainShip);
+    const authoritativeShip = entities.find(
+      (entity) => entity.kind === 'mainShip' && entity.playerId === playerId
+    );
+    const acknowledgedSeq = snapshot.lastProcessedSeq?.[playerId];
+    if (authoritativeShip && Number.isInteger(acknowledgedSeq)) {
+      const now = performance.now();
+      const currentCorrection = getCorrectionOffset(now);
+      const previousState = predictedShip
+        ? {
+            pos: { ...predictedShip.pos },
+            vel: { ...predictedShip.vel },
+          }
+        : null;
+      const previousVisualPosition = predictedShip
+        ? {
+            x: predictedShip.pos.x + currentCorrection.x,
+            y: predictedShip.pos.y + currentCorrection.y,
+          }
+        : null;
 
-  let previous = {
-    pos: new Vector2(mainShip.pos.x, mainShip.pos.y),
-    angle: mainShip.angle,
-    thrust: mainShip.thrust,
-  }; // previous ship state, remove shallow copy cause equal vector2 reference
-  let stateSendTimer = 0;
+      predictedShip = {
+        ...authoritativeShip,
+        pos: { ...authoritativeShip.pos },
+        vel: { ...authoritativeShip.vel },
+      };
+
+      for (const seq of pendingInputs.keys()) {
+        if (seq <= acknowledgedSeq) {
+          pendingInputs.delete(seq);
+        }
+      }
+
+      for (const message of pendingInputs.values()) {
+        applyPredictedInput(message);
+      }
+
+      correctionMagnitude = previousState
+        ? Math.hypot(
+            previousState.pos.x - predictedShip.pos.x,
+            previousState.pos.y - predictedShip.pos.y,
+            (previousState.vel.x - predictedShip.vel.x) * step,
+            (previousState.vel.y - predictedShip.vel.y) * step
+          )
+        : 0;
+      correctionOffsetX = previousVisualPosition
+        ? previousVisualPosition.x - predictedShip.pos.x
+        : 0;
+      correctionOffsetY = previousVisualPosition
+        ? previousVisualPosition.y - predictedShip.pos.y
+        : 0;
+      correctionStartedAt = now;
+    }
+
+    if (Number.isInteger(acknowledgedSeq)) {
+      for (const seq of predictedRockets.keys()) {
+        if (seq <= acknowledgedSeq) {
+          predictedRockets.delete(seq);
+        }
+      }
+    }
+  });
+
+  function applyPredictedInput(message) {
+    if (!predictedShip || !predictedShip.alive) return;
+
+    predictedShip = {
+      ...predictedShip,
+      ...integrateShip(predictedShip, message, step),
+    };
+    wrap(predictedShip, arenaWidth, arenaHeight);
+  }
+
+  function getCorrectionOffset(now) {
+    const remaining = Math.max(0, 1 - (now - correctionStartedAt) / 100);
+    return {
+      x: correctionOffsetX * remaining,
+      y: correctionOffsetY * remaining,
+    };
+  }
 
   function simulate(dt) {
-    previous = {
-      pos: new Vector2(mainShip.pos.x, mainShip.pos.y),
-      angle: mainShip.angle,
-      thrust: mainShip.thrust,
-    };
+    if (input.isJustPressed('BracketLeft')) {
+      interpolationDelayMs = Math.max(
+        0,
+        interpolationDelayMs - interpolationDelayStepMs
+      );
+    }
+    if (input.isJustPressed('BracketRight')) {
+      interpolationDelayMs = Math.min(
+        maxInterpolationDelayMs,
+        interpolationDelayMs + interpolationDelayStepMs
+      );
+    }
 
-    world.step(dt, input);
-    wrap(mainShip, arenaWidth, arenaHeight);
+    clientTick = (clientTick + 1) >>> 0;
+    inputSequence = (inputSequence + 1) >>> 0;
 
-    stateSendTimer += dt;
-    if (stateSendTimer >= 1 / 20) {
-      stateSendTimer = 0;
-      connection.send({
-        type: 'state',
-        x: mainShip.pos.x,
-        y: mainShip.pos.y,
-        angle: mainShip.angle,
-        thrust: mainShip.thrust,
-        alive: mainShip.alive,
-      }, { queueIfDisconnected: false });
+    const thrust =
+      Number(input.isDown('KeyW')) - Number(input.isDown('KeyS'));
+    const turn =
+      Number(input.isDown('KeyD')) - Number(input.isDown('KeyA'));
+    const fire = input.isJustPressed('Space');
+    const message = createInputMessage({
+      seq: inputSequence,
+      tick: clientTick,
+      thrust,
+      turn,
+      fire,
+    });
+
+    if (connection.send(message, { queueIfDisconnected: false })) {
+      pendingInputs.set(inputSequence, message);
+      while (pendingInputs.size > 120) {
+        pendingInputs.delete(pendingInputs.keys().next().value);
+      }
+
+      const localShip =
+        predictedShip ??
+        entities.find(
+          (entity) =>
+            entity.kind === 'mainShip' &&
+            entity.playerId === playerId &&
+            entity.alive
+        );
+      if (fire && localShip?.alive) {
+        const launch = getMiniRocketLaunchState(localShip);
+        predictedRockets.set(inputSequence, {
+          id: `predicted-${playerId}-${inputSequence}`,
+          kind: 'miniRocket',
+          pos: { x: launch.pos.x, y: launch.pos.y },
+          vel: { x: launch.vel.x, y: launch.vel.y },
+          x: launch.pos.x,
+          y: launch.pos.y,
+          radius: launch.radius,
+          angle: launch.angle,
+          alive: true,
+          ownerPlayerId: playerId,
+          fireSeq: inputSequence,
+          spawnedAt: performance.now(),
+          startX: launch.pos.x,
+          startY: launch.pos.y,
+        });
+      }
+      applyPredictedInput(message);
     }
 
     input.clearJustPressed();
@@ -277,60 +355,90 @@ function startGame(
 
   function render(alpha, stats) {
     const ctx = canvasConfig.ctx;
-    hud.update(stats, mainShip.score);
+    const now = performance.now();
+    const correctionOffset = getCorrectionOffset(now);
+    for (const [seq, rocket] of predictedRockets) {
+      const elapsedSeconds = (now - rocket.spawnedAt) / 1000;
+      if (elapsedSeconds >= rocketTtl) {
+        predictedRockets.delete(seq);
+        continue;
+      }
+
+      rocket.x = rocket.startX + rocket.vel.x * elapsedSeconds;
+      rocket.y = rocket.startY + rocket.vel.y * elapsedSeconds;
+      rocket.pos.x = rocket.x;
+      rocket.pos.y = rocket.y;
+    }
+    const renderEntities = getInterpolatedEntities(
+      snapshotBuffer,
+      now - interpolationDelayMs,
+      playerId
+    ).filter(
+      (entity) =>
+        entity.kind !== 'miniRocket' || entity.ownerPlayerId !== playerId
+    );
+    renderEntities.push(
+      ...entities.filter(
+        (entity) =>
+          entity.kind === 'miniRocket' &&
+          entity.ownerPlayerId === playerId
+      )
+    );
+    renderEntities.push(...predictedRockets.values());
+    const localShip = entities.find(
+      (entity) => entity.kind === 'mainShip' && entity.playerId === playerId
+    );
+    hud.update(stats, localShip?.score ?? 0, correctionMagnitude);
 
     ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
 
-    for (const entity of world.ofKind('miniRocket')) {
-      drawMiniRocket(ctx, entity);
-    }
+    drawGrid(ctx, window.innerWidth, window.innerHeight);
+    for (const entity of renderEntities) {
+      if (!entity.alive) continue;
 
-    for (const entity of world.ofKind('bliblie')) {
-      drawBliBlie(ctx, entity, assets.bliblie);
-    }
-
-    for (const entity of world.ofKind('explosion')) {
-      drawExplosion(ctx, entity, assets.ship);
-    }
-
-    for (const entity of world.ofKind('pickup')) {
-      if (entity.effect == 'shield') {
+      if (entity.kind === 'mainShip') {
+        const isLocalShip = entity.playerId === playerId && predictedShip;
+        const shipToRender =
+          isLocalShip
+            ? {
+                ...entity,
+                x: predictedShip.pos.x + correctionOffset.x,
+                y: predictedShip.pos.y + correctionOffset.y,
+                pos: {
+                  x: predictedShip.pos.x + correctionOffset.x,
+                  y: predictedShip.pos.y + correctionOffset.y,
+                },
+                angle: predictedShip.angle,
+                thrust: predictedShip.thrust,
+              }
+            : entity;
+        drawShip(
+          ctx,
+          {
+            x: shipToRender.x,
+            y: shipToRender.y,
+            angle: shipToRender.angle,
+            thrust: shipToRender.thrust,
+            angleChange: 0,
+            playerName: entity.playerName,
+          },
+          assets.ship
+        );
+        if (entity.hasShield) drawBarrierShield(ctx, shipToRender);
+      } else if (entity.kind === 'miniRocket') {
+        drawMiniRocket(ctx, entity);
+      } else if (entity.kind === 'bliblie') {
+        drawBliBlie(ctx, entity, assets.bliblie);
+      } else if (entity.kind === 'explosion') {
+        drawExplosion(ctx, entity, assets.ship);
+      } else if (entity.kind === 'pickup' && entity.effect === 'shield') {
         drawShield(ctx, entity, assets.shield);
       }
     }
 
-    const angleChange = getAngleDelta(previous.angle, mainShip.angle);
-
-    const interpolatedShip = {
-      // interpolation between ship states
-      x: previous.pos.x + (mainShip.pos.x - previous.pos.x) * alpha,
-      y: previous.pos.y + (mainShip.pos.y - previous.pos.y) * alpha,
-      angle: previous.angle + angleChange * alpha,
-      thrust: previous.thrust + (mainShip.thrust - previous.thrust) * alpha,
-      angleChange,
-      playerName: mainShip.playerName,
-    };
-
-    drawGrid(ctx, window.innerWidth, window.innerHeight);
-    if (mainShip.alive) drawShip(ctx, interpolatedShip, assets.ship);
-    for (const player of remotePlayers.values()) {
-      if (player.alive !== false) {
-        drawShip(
-          ctx,
-          {
-            x: player.x,
-            y: player.y,
-            angle: player.angle,
-            thrust: player.thrust,
-            angleChange: 0,
-            playerName: player.playerName,
-          },
-          assets.ship
-        );
-      }
-    }
-    if (mainShip.alive && mainShip.hasShield) {
-      drawBarrierShield(ctx, mainShip);
+    if (interpolationDelayHud) {
+      interpolationDelayHud.textContent =
+        `Interpolation delay: ${interpolationDelayMs.toFixed(0)} ms ([ / ] to adjust)`;
     }
   }
 

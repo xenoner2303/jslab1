@@ -1,9 +1,9 @@
 import { Vector2 } from './vector.js';
-import { getAngleDelta } from '../supFunctions.js';
+import { getAngleDelta } from './math.js';
 import {
   angleSpeed,
   homingDirectionChangeMultiplier,
-} from '../../config/settings.js';
+} from '../config/settings.js';
 
 function applyHoming(entity, dt, context) {
   const { target, worldEntities } = context;

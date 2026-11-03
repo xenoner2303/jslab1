@@ -5,8 +5,8 @@ export const config = {
   host: process.env.HOST || "localhost",
   logDir: path.resolve(process.cwd(), process.env.LOG_DIR || "logs"),
   limits: {
-    messagesPerSecond: 30,
-    messageBurst: 30,
+    messagesPerSecond: 75,
+    messageBurst: 75,
     maxRooms: 100,
     maxPlayersPerRoom: 8,
     maxPayloadBytes: 64 * 1024,

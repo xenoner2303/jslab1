@@ -1,5 +1,5 @@
-import { lobbyRefresh } from '../../config/settings.js';
-import { GameConnection } from '../connection.js';
+import { lobbyRefresh } from '../config/settings.js';
+import { GameConnection } from '../../client/src/connection.js';
 
 class Lobby extends EventTarget {
   #rooms = [];
@@ -103,7 +103,16 @@ class Lobby extends EventTarget {
     this.stopAutoRefresh(); 
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
+    const networkParams = new URLSearchParams(window.location.search);
+    const wsParams = new URLSearchParams();
+    for (const key of ['latencyMs', 'jitterMs', 'dropRate', 'codec']) {
+      if (networkParams.has(key)) {
+        wsParams.set(key, networkParams.get(key));
+      }
+    }
+    const serializedParams = wsParams.toString();
+    const networkQuery = serializedParams ? `?${serializedParams}` : '';
+    const wsUrl = `${protocol}//${window.location.host}/ws${networkQuery}`;
     
     const connection = new GameConnection(wsUrl); // create a new GameConnection instance
     let hasJoined = false;
