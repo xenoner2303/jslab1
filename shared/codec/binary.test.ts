@@ -3,11 +3,8 @@ import test from "node:test";
 import { decodeBinaryMessage, encodeBinaryMessage } from "./binary.ts";
 import { Vector2 } from "../sim/vector.ts";
 import type {
-  EntityId,
   InputMessage,
   SnapshotMessage,
-  Tick,
-  Seq,
 } from "./binary.ts";
 
 const float32 = (value: number): number => new Float32Array([value])[0]!;
@@ -15,22 +12,22 @@ const quantizedAngle = (angle: number): number =>
   Math.round(Math.atan2(Math.sin(angle), Math.cos(angle)) * 1000) / 1000;
 
 const input: InputMessage = {
-  type: "input" as const,
-  seq: 42 as Seq,
-  tick: 100 as Tick,
-  thrust: 1 as const,
-  turn: -1 as const,
+  type: "input",
+  seq: 42,
+  tick: 100,
+  thrust: 1,
+  turn: -1,
   fire: true,
 };
 
 const snapshot: SnapshotMessage = {
-  type: "snapshot" as const,
-  tick: 100 as Tick,
-  lastProcessedSeq: { "player-1": 42 as Seq, "player-2": 39 as Seq },
+  type: "snapshot",
+  tick: 100,
+  lastProcessedSeq: { "player-1": 42, "player-2": 39 },
   entities: [
     {
-      id: 1 as EntityId,
-      kind: "mainShip" as const,
+      id: 1,
+      kind: "mainShip",
       pos: new Vector2(100.25, 200.5),
       vel: new Vector2(1.25, -2.5),
       x: 100.25,
@@ -45,8 +42,8 @@ const snapshot: SnapshotMessage = {
       hasShield: true,
     },
     {
-      id: 2 as EntityId,
-      kind: "miniRocket" as const,
+      id: 2,
+      kind: "miniRocket",
       pos: new Vector2(11.5, 22.25),
       vel: new Vector2(3.5, 4.25),
       x: 11.5,
@@ -56,11 +53,11 @@ const snapshot: SnapshotMessage = {
       alive: true,
       playerId: null,
       ownerPlayerId: "player-1",
-      fireSeq: 42 as Seq,
+      fireSeq: 42,
     },
     {
-      id: 3 as EntityId,
-      kind: "bliblie" as const,
+      id: 3,
+      kind: "bliblie",
       pos: new Vector2(1.5, 2.5),
       vel: new Vector2(-3.5, 4.5),
       x: 1.5,
@@ -71,8 +68,8 @@ const snapshot: SnapshotMessage = {
       playerId: null,
     },
     {
-      id: 4 as EntityId,
-      kind: "pickup" as const,
+      id: 4,
+      kind: "pickup",
       pos: new Vector2(8.5, 9.5),
       vel: new Vector2(0, 0),
       x: 8.5,
@@ -81,11 +78,11 @@ const snapshot: SnapshotMessage = {
       radius: 5.5,
       alive: true,
       playerId: null,
-      effect: "shield" as const,
+      effect: "shield",
     },
     {
-      id: 5 as EntityId,
-      kind: "explosion" as const,
+      id: 5,
+      kind: "explosion",
       pos: new Vector2(40.5, 50.25),
       vel: new Vector2(0, 0),
       x: 40.5,
@@ -154,11 +151,11 @@ test("binary codec accepts typed-array views with offsets", () => {
 
 test("snapshot encoding grows its buffer for larger messages", () => {
   const baseEntity = snapshot.entities[2]!;
-  const largeSnapshot = {
+  const largeSnapshot: SnapshotMessage = {
     ...snapshot,
     entities: Array.from({ length: 20 }, (_, index) => ({
       ...baseEntity,
-      id: (index + 1) as EntityId,
+      id: index + 1,
     })),
   };
   const decoded = decodeBinaryMessage(encodeBinaryMessage(largeSnapshot));

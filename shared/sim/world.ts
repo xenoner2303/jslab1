@@ -22,7 +22,7 @@ import {
 import { Pickup } from './pickup.ts';
 import { createSeededRandom } from './prng.ts';
 import type { EntityId } from '../codec/binary.ts';
-import type { Ship } from './ship.ts';
+import { Ship } from './ship.ts';
 
 export class World extends EventTarget {
   #entities = new Map<EntityId, Entity>();
@@ -73,8 +73,8 @@ export class World extends EventTarget {
 
     this.#entities.set(e.id, e);
 
-    if (e.kind === 'mainShip') {
-      this.#shipKillCount.set(e as Ship, 0);
+    if (e instanceof Ship) {
+      this.#shipKillCount.set(e, 0);
     }
   }
 
@@ -193,7 +193,8 @@ export class World extends EventTarget {
     }
 
     for (const entity of this.ofKind('mainShip')) {
-      const ship = entity as Ship;
+      if (!(entity instanceof Ship)) continue;
+      const ship = entity;
       if (ship.fireRequested) {
         ship.fireRequested = false;
 
@@ -216,7 +217,7 @@ export class World extends EventTarget {
 
     for (const entity of this) {
       const context: BehaviorContext =
-        entity.kind === 'miniRocket'
+        entity instanceof MiniRocket
           ? {
               target: this.findNearestTarget(entity, 'bliblie'),
               worldEntities: this,
@@ -225,7 +226,7 @@ export class World extends EventTarget {
 
       entity.update(dt, context);
 
-      if (entity.kind === 'bliblie') {
+      if (entity instanceof BliBlie) {
         bounce(entity, this.width, this.height);
       }
     }
@@ -243,17 +244,13 @@ export class World extends EventTarget {
         b.vel = new Vector2(-b.vel.x, -b.vel.y);
       }
 
-      if (
-        (a.kind === 'miniRocket' && b.kind === 'bliblie') ||
-        (a.kind === 'bliblie' && b.kind === 'miniRocket')
-      ) {
-        const rocket = (a.kind === 'miniRocket' ? a : b) as MiniRocket;
-        const bliblie = a.kind === 'bliblie' ? a : b;
-
+      const rocket = a instanceof MiniRocket ? a : b instanceof MiniRocket ? b : null;
+      const bliblie = a instanceof BliBlie ? a : b instanceof BliBlie ? b : null;
+      if (rocket && bliblie) {
         rocket.alive = false;
         bliblie.alive = false;
         
-        const ownerShip = rocket.owner as Ship;
+        const ownerShip = rocket.owner;
         ownerShip.score += 1;
 
         const currentKills = (this.#shipKillCount.get(ownerShip) ?? 0) + 1;
@@ -269,13 +266,8 @@ export class World extends EventTarget {
         );
       }
 
-      if (
-        (a.kind === 'mainShip' && b.kind === 'bliblie') ||
-        (a.kind === 'bliblie' && b.kind === 'mainShip')
-      ) {
-        const ship = (a.kind === 'mainShip' ? a : b) as Ship;
-        const bliblie = a.kind === 'bliblie' ? a : b;
-
+      const ship = a instanceof Ship ? a : b instanceof Ship ? b : null;
+      if (ship && bliblie) {
         if (ship.hit(damageFromObjects)) {
           this.spawn(new Explosion(ship.pos, this.random));
           this.#shipKillCount.set(ship, 0);
@@ -286,16 +278,10 @@ export class World extends EventTarget {
         ship.vel = new Vector2(-ship.vel.x, -ship.vel.y);
       }
 
-      if (
-        (a.kind === 'mainShip' && b.kind === 'miniRocket') ||
-        (a.kind === 'miniRocket' && b.kind === 'mainShip')
-      ) {
-        const ship = (a.kind === 'mainShip' ? a : b) as Ship;
-        const rocket = (a.kind === 'miniRocket' ? a : b) as MiniRocket;
-
+      if (ship && rocket) {
         if (rocket.owner !== ship && ship.hit(damageFromMiniRocket)) {
           this.spawn(new Explosion(ship.pos, this.random));
-          const ownerShip = rocket.owner as Ship;
+          const ownerShip = rocket.owner;
           this.#shipKillCount.set(ownerShip, 0);
           this.dispatchEvent(new CustomEvent('exploded'));
         }
@@ -303,13 +289,8 @@ export class World extends EventTarget {
         rocket.alive = false;
       }
 
-      if (
-        (a.kind === 'mainShip' && b.kind === 'pickup') ||
-        (a.kind === 'pickup' && b.kind === 'mainShip')
-      ) {
-        const ship = (a.kind === 'mainShip' ? a : b) as Ship;
-        const pickup = (a.kind === 'pickup' ? a : b) as Pickup;
-
+      const pickup = a instanceof Pickup ? a : b instanceof Pickup ? b : null;
+      if (ship && pickup) {
         if (pickup.effect === 'shield') {
           ship.hasShield = true;
         }
@@ -320,8 +301,8 @@ export class World extends EventTarget {
 
     for (const entity of this) {
       if (!entity.alive) {
-        if (entity.kind === 'mainShip') {
-          const ship = entity as Ship;
+        if (entity instanceof Ship) {
+          const ship = entity;
           if (ship.updateRespawn(dt)) {
             ship.pos = this.#getRandomFreeSpot(ship.radius);
           }

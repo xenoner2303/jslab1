@@ -1,64 +1,64 @@
 // ship physics parameters
-export const maxSpeed = 300 as const;
-export const angleSpeed = 90 as const; // for second in degrees
-export const maxThrust = 100 as const;
-export const thrustIncrement = 20 as const;
-export const thrustDecrement = 80 as const;
-export const dragSpeed = 40 as const;
-export const maxShipHp = 1 as const;
-export const damageFromObjects = 1 as const;
-export const damageFromMiniRocket = 2 as const;
-export const shipRespawnTime = 2 as const; // in sec
+export const maxSpeed = 300;
+export const angleSpeed = 90; // for second in degrees
+export const maxThrust = 100;
+export const thrustIncrement = 20;
+export const thrustDecrement = 80;
+export const dragSpeed = 40;
+export const maxShipHp = 1;
+export const damageFromObjects = 1;
+export const damageFromMiniRocket = 2;
+export const shipRespawnTime = 2; // in sec
 
 // ship drawing params
-export const shipWidth = 50 as const;
-export const shipHeight = 80 as const;
-export const shipFrontThurstColor = 'red' as const;
-export const shipBackThurstColor = 'blue' as const;
-export const shipThurstMultiplier = 1.2 as const;
-export const shipThurstLineWidth = 2 as const;
-export const shipThurstLineCount = 3 as const;
-export const shipAnglePower = 3 as const;
-export const gridColor = 'gray' as const;
-export const explosionTtl = 1 as const;
-export const explosionParticleCount = 16 as const;
-export const explosionParticleMinSize = 2 as const;
-export const explosionParticleMaxSize = 5 as const;
-export const explosionParticleMaxSpeed = 50 as const;
-export const explosionColors = ['#ff4500', '#ffee55'] as const;
+export const shipWidth = 50;
+export const shipHeight = 80;
+export const shipFrontThurstColor = 'red';
+export const shipBackThurstColor = 'blue';
+export const shipThurstMultiplier = 1.2;
+export const shipThurstLineWidth = 2;
+export const shipThurstLineCount = 3;
+export const shipAnglePower = 3;
+export const gridColor = 'gray';
+export const explosionTtl = 1;
+export const explosionParticleCount = 16;
+export const explosionParticleMinSize = 2;
+export const explosionParticleMaxSize = 5;
+export const explosionParticleMaxSpeed = 50;
+export const explosionColors: readonly [string, string] = ['#ff4500', '#ffee55'];
 
 // setup configuration
-export const simulationTickRate = 30 as const;
+export const simulationTickRate = 30;
 export const step = 1 / simulationTickRate;
-export const gridSize = 50 as const;
-export const arenaWidth = 1200 as const;
-export const arenaHeight = 800 as const;
+export const gridSize = 50;
+export const arenaWidth = 1200;
+export const arenaHeight = 800;
 
 // miniRockets
-export const rocketTtl = 10 as const; // in seconds
-export const miniRocketSpeed = 400 as const;
-export const miniRocketHeight = 20 as const;
-export const miniRocketWidth = 10 as const;
-export const miniRocketFillStyle = 'gray' as const;
-export const miniRocketFlameFillStyle = 'red' as const;
+export const rocketTtl = 10; // in seconds
+export const miniRocketSpeed = 400;
+export const miniRocketHeight = 20;
+export const miniRocketWidth = 10;
+export const miniRocketFillStyle = 'gray';
+export const miniRocketFlameFillStyle = 'red';
 
 // bliblies
-export const blibliesCount = 5 as const;
-export const maxBliblieSpeed = 50 as const; // in seconds
-export const bliblieHeight = 80 as const;
-export const bliblieWidth = 60 as const;
-export const bliblieScreamTimer = 5 as const;
+export const blibliesCount = 5;
+export const maxBliblieSpeed = 50; // in seconds
+export const bliblieHeight = 80;
+export const bliblieWidth = 60;
+export const bliblieScreamTimer = 5;
 
 // homing
-export const homingDirectionChangeMultiplier = 0.1 as const;
+export const homingDirectionChangeMultiplier = 0.1;
 
 // pickup
-export const barrierShieldAdditionalRadius = 4 as const;
-export const barrierShieldStrokeStyle = 'blue' as const;
-export const barrierShieldLineWidth = 4 as const;
-export const pickupItemsCount = 2 as const;
-export const shieldWidth = 40 as const;
-export const shieldHeight = 60 as const;
+export const barrierShieldAdditionalRadius = 4;
+export const barrierShieldStrokeStyle = 'blue';
+export const barrierShieldLineWidth = 4;
+export const pickupItemsCount = 2;
+export const shieldWidth = 40;
+export const shieldHeight = 60;
 
 // lobby
-export const lobbyRefresh = 5000 as const;
+export const lobbyRefresh = 5000;

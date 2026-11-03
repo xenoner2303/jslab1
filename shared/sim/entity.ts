@@ -47,7 +47,7 @@ export class Entity {
       throw new Error('alive is not bool');
     }
 
-    this.id = Entity.#idNum++ as EntityId;
+    this.id = Entity.#idNum++;
     this.pos = pos;
     this.vel = vel;
     this.radius = radius;

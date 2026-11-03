@@ -129,8 +129,7 @@ export class Match {
       input,
       queuedInputs: [],
       lastReceivedSeq: 0,
-      // The protocol schema guarantees that zero is a valid sequence number.
-      lastProcessedSeq: 0 as Seq,
+      lastProcessedSeq: 0,
     });
 
     this.start();
@@ -231,8 +230,7 @@ export class Match {
     );
     const snapshot = {
       ...createSnapshotMessage(
-        // Tick is serialized as a uint32; this cast brands the numeric counter.
-        this.tick as Tick,
+        this.tick,
         lastProcessedSeq,
         entities,
       ),

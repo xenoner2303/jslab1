@@ -26,4 +26,4 @@ export const config = {
     maxPayloadBytes: 64 * 1024,
     maxBufferedBytes: 256 * 1024,
   },
-} as const;
+};

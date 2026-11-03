@@ -2,7 +2,10 @@ export type EventMap = object;
 export type EventHandler<T> = (payload: T) => void;
 
 export class Bus<Events extends EventMap> {
-  readonly #listeners = new Map<keyof Events, Set<(payload: never) => void>>();
+  readonly #listeners = new Map<
+    keyof Events,
+    Set<EventHandler<Events[keyof Events]>>
+  >();
 
   on<Key extends keyof Events>(
     event: Key,
@@ -14,7 +17,8 @@ export class Bus<Events extends EventMap> {
       this.#listeners.set(event, listeners);
     }
 
-    const listener = handler as (payload: never) => void;
+    // reconnects event payload types lost to map erasure
+    const listener = handler as EventHandler<Events[keyof Events]>;
     listeners.add(listener);
     return () => {
       listeners?.delete(listener);
@@ -27,7 +31,7 @@ export class Bus<Events extends EventMap> {
     if (!listeners) return;
 
     for (const listener of listeners) {
-      listener(payload as never);
+      listener(payload);
     }
   }
 }
