@@ -1,6 +1,7 @@
 {
   "name": "shared",
   "version": "1.0.0",
+  "typecheck": "tsc --noEmit",
   "private": true,
   "type": "module"
 }

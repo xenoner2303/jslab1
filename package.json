@@ -2,6 +2,7 @@
   "name": "jslab1",
   "version": "1.0.0",
   "description": "Multiplayer Game Project",
+  "typecheck": "npm run typecheck --workspace=shared",
   "private": true,
   "workspaces": [
     "client",
@@ -14,6 +15,7 @@
     "start": "node server/src/index.js"
   },
   "devDependencies": {
-    "prettier": "^3.9.9"
+    "prettier": "^3.9.9",
+    "typescript": "^7.0.2"
   }
 }

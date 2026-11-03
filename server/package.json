@@ -8,6 +8,7 @@
     "dev": "node --watch --env-file=.env src/index.js"
   },
   "dependencies": {
-    "ws": "^8.18.0"
+    "ws": "^8.18.0",
+    "shared": "file:../shared"
   }
 }

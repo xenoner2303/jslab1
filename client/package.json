@@ -25,6 +25,7 @@
   "homepage": "https://github.com/xenoner2303/jslab1#readme",
   "devDependencies": {
     "prettier": "^3.9.9",
-    "vite": "^8.3.1"
+    "vite": "^8.3.1",
+    "shared": "file:../shared"
   }
 }
