@@ -42,7 +42,9 @@ describe("fast-check properties (100 generated cases each)", () => {
             turn,
             fire,
           });
-          const decoded = decodeBinaryMessage(encodeBinaryMessage(message));
+          const encoded = encodeBinaryMessage(message);
+          expect(encoded.byteLength).toBe(13);
+          const decoded = decodeBinaryMessage(encoded);
           expect(decoded).toEqual(message);
         },
       ),
@@ -171,7 +173,7 @@ describe("fast-check properties (100 generated cases each)", () => {
     );
   }, 30_000);
 
-  it("accepts generated valid client messages and rejects a mutated type", () => {
+  it("accepts generated valid client messages and rejects generated mutations", () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const message = fc.oneof(
       fc.record({
@@ -194,12 +196,21 @@ describe("fast-check properties (100 generated cases each)", () => {
     );
 
     fc.assert(
-      fc.property(message, (validMessage) => {
-        expect(parseClientMessage(validMessage).success).toBe(true);
-        expect(
-          parseClientMessage({ ...validMessage, type: "invalid" }).success,
-        ).toBe(false);
-      }),
+      fc.property(
+        message,
+        fc.constantFrom("type", "extra", "nullField"),
+        (validMessage, mutation) => {
+          expect(parseClientMessage(validMessage).success).toBe(true);
+          const firstKey = Object.keys(validMessage)[0] ?? "type";
+          const mutated =
+            mutation === "type"
+              ? { ...validMessage, type: "invalid" }
+              : mutation === "extra"
+                ? { ...validMessage, extraField: true }
+                : { ...validMessage, [firstKey]: null };
+          expect(parseClientMessage(mutated).success).toBe(false);
+        },
+      ),
       { numRuns: 100 },
     );
     expect(errorSpy).toHaveBeenCalled();

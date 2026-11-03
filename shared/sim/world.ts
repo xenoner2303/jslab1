@@ -49,6 +49,10 @@ export class World extends EventTarget {
     this.bliblieScreamTimer = bliblieScreamTimer;
   }
 
+  clone(): World {
+    return new World(this.width, this.height, this.seed);
+  }
+
   #getRandomFreeSpot(radius: number): Vector2 {
     let potentialSpot = new Vector2(
       this.random() * this.width,

@@ -24,6 +24,10 @@ import {
   getInterpolatedEntities,
   type SnapshotFrame,
 } from './interpolation.ts';
+import {
+  reconcilePredictedShip,
+  type PredictedShip,
+} from './reconciliation.ts';
 import { loadAll, type LoadedAssets } from './loader.ts';
 import {
   drawBarrierShield,
@@ -35,14 +39,6 @@ import {
   drawShip,
 } from './render/draw.ts';
 import { configureCanvas, type CanvasConfig } from './render/canvas.ts';
-
-type PredictedShip = Omit<
-  Extract<EntitySnapshot, { kind: 'mainShip' }>,
-  'pos' | 'vel'
-> & {
-  pos: Vector2;
-  vel: Vector2;
-};
 
 type PredictedRocket = Pick<
   Extract<EntitySnapshot, { kind: 'miniRocket' }>,
@@ -278,17 +274,15 @@ function startGame(
           }
         : null;
 
-      predictedShip = {
-        ...authoritativeShip,
-        pos: new Vector2(authoritativeShip.pos.x, authoritativeShip.pos.y),
-        vel: new Vector2(authoritativeShip.vel.x, authoritativeShip.vel.y),
-      };
-
-      for (const sequence of pendingInputs.keys()) {
-        if (sequence <= acknowledgedSeq) pendingInputs.delete(sequence);
-      }
-      for (const message of pendingInputs.values()) {
-        applyPredictedInput(message);
+      const reconciled = reconcilePredictedShip(
+        authoritativeShip,
+        pendingInputs,
+        acknowledgedSeq
+      );
+      predictedShip = reconciled.predictedShip;
+      pendingInputs.clear();
+      for (const [sequence, message] of reconciled.pendingInputs) {
+        pendingInputs.set(sequence, message);
       }
 
       correctionMagnitude = previousState

@@ -13,17 +13,21 @@
     "build": "npm run build --workspace=client",
     "start": "node server/src/index.ts",
     "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "eslint .",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.64.1",
     "@types/node": "^24.19.2",
     "@vitest/coverage-v8": "^5.1.0",
+    "eslint": "^10.14.0",
     "fast-check": "^4.10.2",
     "prettier": "^3.9.9",
     "typescript": "^7.0.2",
+    "typescript-eslint": "^8.72.1",
     "vitest": "^5.1.0"
   },
   "dependencies": {

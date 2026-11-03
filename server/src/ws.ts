@@ -8,6 +8,12 @@ import {
 } from "../../shared/protocol.ts";
 import { getCodec } from "../../shared/codec/index.ts";
 import { config } from "./config.ts";
+import { startHeartbeat } from "./heartbeat.ts";
+import {
+  consumeMessageToken,
+  createTokenBucket,
+  type TokenBucket,
+} from "./rateLimit.ts";
 import type { Player, Room, RoomManager, RoomSocket } from "./rooms.ts";
 
 type NetworkSimulation = {
@@ -30,11 +36,7 @@ type SocketData = {
 type ClientSocket = RoomSocket & {
   data: SocketData;
   missedPongs: number;
-  rateLimit: {
-    tokens: number;
-    lastRefillAt: number;
-    exceeded: boolean;
-  };
+  rateLimit: TokenBucket;
 };
 
 function createNetworkSimulation(req: IncomingMessage): NetworkSimulation {
@@ -115,11 +117,10 @@ export function setupWebSocket(
     const client: ClientSocket = Object.assign(socket, {
       data: { player: null, room: null, networkSimulation, codec },
       missedPongs: 0,
-      rateLimit: {
-        tokens: config.limits.messageBurst,
-        lastRefillAt: performance.now(),
-        exceeded: false,
-      },
+      rateLimit: createTokenBucket(
+        config.limits.messageBurst,
+        performance.now(),
+      ),
     });
     clients.add(client);
 
@@ -135,28 +136,23 @@ export function setupWebSocket(
     }, 5000);
 
     client.on("message", (data, isBinary) => {
-      if (client.rateLimit.exceeded) {
+      const alreadyLimited = client.rateLimit.exceeded;
+      if (
+        !consumeMessageToken(
+          client.rateLimit,
+          performance.now(),
+          config.limits.messageBurst,
+          config.limits.messagesPerSecond,
+        )
+      ) {
+        if (!alreadyLimited) {
+          console.warn(
+            "Connection closed: WebSocket message rate limit exceeded",
+          );
+          client.close(4008, "Message rate limit exceeded");
+        }
         return;
       }
-
-      const now = performance.now();
-      const elapsedSeconds = (now - client.rateLimit.lastRefillAt) / 1000;
-      client.rateLimit.tokens = Math.min(
-        config.limits.messageBurst,
-        client.rateLimit.tokens +
-          elapsedSeconds * config.limits.messagesPerSecond,
-      );
-      client.rateLimit.lastRefillAt = now;
-
-      if (client.rateLimit.tokens < 1) {
-        client.rateLimit.exceeded = true;
-        console.warn(
-          "Connection closed: WebSocket message rate limit exceeded",
-        );
-        client.close(4008, "Message rate limit exceeded");
-        return;
-      }
-      client.rateLimit.tokens -= 1;
 
       const messageData = Array.isArray(data) ? Buffer.concat(data) : data;
       let rawMessage: unknown;
@@ -316,19 +312,7 @@ export function setupWebSocket(
     });
   });
 
-  const heartbeatInterval = setInterval(() => {
-    for (const client of clients) {
-      if (client.readyState !== WebSocket.OPEN) {
-        continue;
-      }
-      if (client.missedPongs >= 2) {
-        client.terminate();
-        continue;
-      }
-      client.missedPongs += 1;
-      client.ping();
-    }
-  }, 15000);
+  const heartbeatInterval = startHeartbeat(clients, WebSocket.OPEN);
 
   wss.on("close", () => {
     clearInterval(heartbeatInterval);

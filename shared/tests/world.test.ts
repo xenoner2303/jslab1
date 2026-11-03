@@ -72,8 +72,9 @@ describe("World", () => {
   it.each([1, 17, 0xffffffff])(
     "repeats the same simulation from matching seeded state (seed %s)",
     (seed) => {
-      const first = new World(1200, 800, seed);
-      const second = new World(1200, 800, seed);
+      const origin = new World(1200, 800, seed);
+      const first = origin.clone();
+      const second = origin.clone();
       first.spawn(shipAt(600, 400, inputHandler({ thrust: 1, turn: 1 })));
       second.spawn(shipAt(600, 400, inputHandler({ thrust: 1, turn: 1 })));
 
