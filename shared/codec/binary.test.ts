@@ -56,7 +56,7 @@ const snapshot: SnapshotMessage = {
       alive: true,
       playerId: null,
       ownerPlayerId: "player-1",
-      fireSeq: 42,
+      fireSeq: 42 as Seq,
     },
     {
       id: 3 as EntityId,
@@ -182,4 +182,10 @@ test("binary codec rejects unsupported versions and malformed packets", () => {
     () => decodeBinaryMessage(new Uint8Array([1, 1, 0, ...new Uint8Array(13)])),
     /trailing bytes/,
   );
+});
+
+test("binary decoder rejects values outside the input ranges", () => {
+  const encoded = encodeBinaryMessage(input);
+  new DataView(encoded).setInt8(10, 2);
+  assert.throws(() => decodeBinaryMessage(encoded), /Invalid binary input values/);
 });

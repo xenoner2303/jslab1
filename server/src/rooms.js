@@ -2,8 +2,7 @@ import { EventEmitter } from "node:events";
 import { MatchLog } from "./log/matchlog.js";
 import { config } from "./config.js";
 import { Match } from "./match.js";
-import { encodeJsonMessage } from "../../shared/codec/json.ts";
-import { encodeBinaryMessage } from "../../shared/codec/binary.ts";
+import { getCodec } from "../../shared/codec/index.ts";
 
 export class Room extends EventEmitter {
   constructor(id, name, maxPlayers, logDir) {
@@ -97,8 +96,8 @@ export class Room extends EventEmitter {
 
       const payload =
         data.type === "snapshot" && socket.data?.codec === "binary"
-          ? encodeBinaryMessage(data)
-          : encodeJsonMessage(data);
+          ? getCodec("binary").encode(data)
+          : getCodec("json").encode(data);
       const send = () => {
         if (socket.readyState === 1) socket.send(payload);
       };

@@ -1,11 +1,5 @@
-import {
-  decodeJsonMessage,
-  encodeJsonMessage,
-} from '../../shared/codec/json.ts';
-import {
-  decodeBinaryMessage,
-  encodeBinaryMessage,
-} from '../../shared/codec/binary.ts';
+import { getCodec } from '../../shared/codec/index.ts';
+import { parseServerMessage } from '../../shared/protocol.ts';
 
 export class GameConnection extends EventTarget {
   #url;
@@ -54,20 +48,27 @@ export class GameConnection extends EventTarget {
 
     socket.addEventListener('message', (event) => {
       try {
-        const data =
+        const raw =
           event.data instanceof ArrayBuffer
-            ? decodeBinaryMessage(event.data)
-            : decodeJsonMessage(event.data);
+            ? getCodec('binary').decode(event.data)
+            : getCodec('json').decode(event.data);
         this.#bytesIn +=
           typeof event.data === 'string'
             ? new TextEncoder().encode(event.data).byteLength
             : event.data.byteLength;
 
-        if (data.type) {
-          this.dispatchEvent(new CustomEvent(data.type, { detail: data }));
+        const result = parseServerMessage(raw);
+        if (!result.success) {
+          console.warn('Invalid server message:', result.error);
+          socket.close(4002, 'Invalid server message');
+          return;
         }
-      } catch (err) {
-        console.error('Failed to parse incoming WebSocket message:', err);
+        this.dispatchEvent(
+          new CustomEvent(result.data.type, { detail: result.data }),
+        );
+      } catch (error) {
+        console.error('Failed to parse incoming WebSocket message:', error);
+        socket.close(4002, 'Invalid server message');
       }
     });
 
@@ -100,9 +101,7 @@ export class GameConnection extends EventTarget {
   #sendPayload(socket, data) {
     const useBinary =
       this.#codec === 'binary' && data.type === 'input';
-    const payload = useBinary
-      ? encodeBinaryMessage(data)
-      : encodeJsonMessage(data);
+    const payload = getCodec(useBinary ? 'binary' : 'json').encode(data);
     this.#bytesOut +=
       typeof payload === 'string'
         ? new TextEncoder().encode(payload).byteLength
