@@ -1,15 +1,9 @@
 import assert from "node:assert/strict";
-import test from "node:test";
-import { decodeBinaryMessage, encodeBinaryMessage } from "./binary.ts";
+import { it } from "vitest";
+import { decodeBinaryMessage, encodeBinaryMessage } from "../codec/binary.ts";
 import { Vector2 } from "../sim/vector.ts";
-import {
-  InputMessageSchema,
-  SnapshotMessageSchema,
-} from "../protocol.ts";
-import type {
-  InputMessage,
-  SnapshotMessage,
-} from "./binary.ts";
+import { InputMessageSchema, SnapshotMessageSchema } from "../protocol.ts";
+import type { InputMessage, SnapshotMessage } from "../codec/binary.ts";
 
 const float32 = (value: number): number => new Float32Array([value])[0]!;
 const quantizedAngle = (angle: number): number =>
@@ -132,18 +126,18 @@ function expectedSnapshot() {
   };
 }
 
-test("input binary codec round-trips", () => {
+it("input binary codec round-trips", () => {
   assert.deepEqual(decodeBinaryMessage(encodeBinaryMessage(input)), input);
 });
 
-test("snapshot binary codec round-trips with float and angle quantization", () => {
+it("snapshot binary codec round-trips with float and angle quantization", () => {
   assert.deepEqual(
     decodeBinaryMessage(encodeBinaryMessage(snapshot)),
     expectedSnapshot(),
   );
 });
 
-test("binary codec accepts typed-array views with offsets", () => {
+it("binary codec accepts typed-array views with offsets", () => {
   const encoded = encodeBinaryMessage(input);
   const wrapped = new Uint8Array(encoded.byteLength + 4);
   wrapped.set(new Uint8Array(encoded), 2);
@@ -153,7 +147,7 @@ test("binary codec accepts typed-array views with offsets", () => {
   );
 });
 
-test("snapshot encoding grows its buffer for larger messages", () => {
+it("snapshot encoding grows its buffer for larger messages", () => {
   const baseEntity = snapshot.entities[2]!;
   const largeSnapshot = SnapshotMessageSchema.parse({
     ...snapshot,
@@ -164,13 +158,10 @@ test("snapshot encoding grows its buffer for larger messages", () => {
   });
   const decoded = decodeBinaryMessage(encodeBinaryMessage(largeSnapshot));
   if (decoded.type !== "snapshot") throw new Error("Expected snapshot");
-  assert.equal(
-    decoded.entities.length,
-    largeSnapshot.entities.length,
-  );
+  assert.equal(decoded.entities.length, largeSnapshot.entities.length);
 });
 
-test("binary codec rejects unsupported versions and malformed packets", () => {
+it("binary codec rejects unsupported versions and malformed packets", () => {
   assert.throws(
     () => decodeBinaryMessage(new Uint8Array([99, 1])),
     /Unsupported binary protocol version/,
@@ -185,8 +176,11 @@ test("binary codec rejects unsupported versions and malformed packets", () => {
   );
 });
 
-test("binary decoder rejects values outside the input ranges", () => {
+it("binary decoder rejects values outside the input ranges", () => {
   const encoded = encodeBinaryMessage(input);
   new DataView(encoded).setInt8(10, 2);
-  assert.throws(() => decodeBinaryMessage(encoded), /Invalid binary input values/);
+  assert.throws(
+    () => decodeBinaryMessage(encoded),
+    /Invalid binary input values/,
+  );
 });
