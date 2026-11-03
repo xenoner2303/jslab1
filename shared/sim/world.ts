@@ -215,6 +215,10 @@ export class World extends EventTarget {
       }
     }
 
+    const previousPositions = new Map<object, Vector2>(
+      [...this].map((entity) => [entity, entity.pos])
+    );
+
     for (const entity of this) {
       const context: BehaviorContext =
         entity instanceof MiniRocket
@@ -231,7 +235,7 @@ export class World extends EventTarget {
       }
     }
 
-    const collisions = entitiesCollision([...this]);
+    const collisions = entitiesCollision([...this], previousPositions);
 
     for (const [a, b] of collisions) {
       if (!a.alive || !b.alive) continue;
@@ -249,7 +253,7 @@ export class World extends EventTarget {
       if (rocket && bliblie) {
         rocket.alive = false;
         bliblie.alive = false;
-        
+
         const ownerShip = rocket.owner;
         ownerShip.score += 1;
 
