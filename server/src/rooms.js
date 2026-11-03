@@ -2,8 +2,8 @@ import { EventEmitter } from "node:events";
 import { MatchLog } from "./log/matchlog.js";
 import { config } from "./config.js";
 import { Match } from "./match.js";
-import { encodeJsonMessage } from "../../shared/codec/json.js";
-import { encodeBinaryMessage } from "../../shared/codec/binary.js";
+import { encodeJsonMessage } from "../../shared/codec/json.ts";
+import { encodeBinaryMessage } from "../../shared/codec/binary.ts";
 
 export class Room extends EventEmitter {
   constructor(id, name, maxPlayers, logDir) {

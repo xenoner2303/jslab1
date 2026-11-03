@@ -17,10 +17,107 @@
  * Strings are UTF-8 with a u8 byte length; 0 means null. Decoding also fills
  * pos/vel from x/y/velX/velY. Angles are rounded to 0.001-radian steps.
  */
+import { Vector2 } from "../sim/vector.ts";
+
+export type EntityId = number & { readonly __brand: "EntityId" };
+export type Tick = number & { readonly __brand: "Tick" };
+export type Seq = number & { readonly __brand: "Seq" };
+
+// Використовуємо клас Vector2 напряму замість дублювання об'єктів
+export type EntitySnapshot =
+  | {
+      readonly id: EntityId;
+      readonly kind: "mainShip";
+      readonly pos: Vector2;
+      readonly vel: Vector2;
+      readonly x: number;
+      readonly y: number;
+      readonly angle: number;
+      readonly radius: number;
+      readonly alive: boolean;
+      readonly playerId: string | null;
+      readonly playerName: string;
+      readonly thrust: number;
+      readonly score: number;
+      readonly hasShield: boolean;
+    }
+  | {
+      readonly id: EntityId;
+      readonly kind: "miniRocket";
+      readonly pos: Vector2;
+      readonly vel: Vector2;
+      readonly x: number;
+      readonly y: number;
+      readonly angle: number;
+      readonly radius: number;
+      readonly alive: boolean;
+      readonly playerId: string | null;
+      readonly ownerPlayerId: string | null;
+      readonly fireSeq: number | null;
+    }
+  | {
+      readonly id: EntityId;
+      readonly kind: "bliblie";
+      readonly pos: Vector2;
+      readonly vel: Vector2;
+      readonly x: number;
+      readonly y: number;
+      readonly angle: number;
+      readonly radius: number;
+      readonly alive: boolean;
+      readonly playerId: string | null;
+    }
+  | {
+      readonly id: EntityId;
+      readonly kind: "pickup";
+      readonly pos: Vector2;
+      readonly vel: Vector2;
+      readonly x: number;
+      readonly y: number;
+      readonly angle: number;
+      readonly radius: number;
+      readonly alive: boolean;
+      readonly playerId: string | null;
+      readonly effect: "shield";
+    }
+  | {
+      readonly id: EntityId;
+      readonly kind: "explosion";
+      readonly pos: Vector2;
+      readonly vel: Vector2;
+      readonly x: number;
+      readonly y: number;
+      readonly angle: number;
+      readonly radius: number;
+      readonly alive: boolean;
+      readonly playerId: string | null;
+      readonly particles: readonly { readonly pos: Vector2; readonly radius: number }[];
+    };
+
+export type InputMessage = {
+  readonly type: "input";
+  readonly seq: Seq;
+  readonly tick: Tick;
+  readonly thrust: -1 | 0 | 1;
+  readonly turn: -1 | 0 | 1;
+  readonly fire: boolean;
+};
+
+export type SnapshotMessage = {
+  readonly type: "snapshot";
+  readonly tick: Tick;
+  readonly lastProcessedSeq: Readonly<Record<string, Seq>>;
+  readonly entities: readonly EntitySnapshot[];
+  readonly seed: number;
+  readonly serverTime: number;
+};
+
+export type BinaryMessage = InputMessage | SnapshotMessage;
+
 export const BinaryMessageTypes = {
   INPUT: 1,
   SNAPSHOT: 2,
-};
+} as const;
 
 export const BinaryEntityKinds = {
   MAIN_SHIP: 1,
@@ -28,14 +125,14 @@ export const BinaryEntityKinds = {
   BLIBLIE: 3,
   EXPLOSION: 4,
   PICKUP: 5,
-};
+} as const;
 
 export const BINARY_PROTOCOL_VERSION = 1;
 
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
 
-const ENTITY_KIND_BY_NAME = {
+const ENTITY_KIND_BY_NAME: Record<EntitySnapshot["kind"], number> = {
   mainShip: BinaryEntityKinds.MAIN_SHIP,
   miniRocket: BinaryEntityKinds.MINI_ROCKET,
   bliblie: BinaryEntityKinds.BLIBLIE,
@@ -43,18 +140,26 @@ const ENTITY_KIND_BY_NAME = {
   pickup: BinaryEntityKinds.PICKUP,
 };
 
-const ENTITY_NAME_BY_KIND = Object.fromEntries(
-  Object.entries(ENTITY_KIND_BY_NAME).map(([name, kind]) => [kind, name]),
-);
+const ENTITY_NAME_BY_KIND: Record<number, EntitySnapshot["kind"]> = {
+  [BinaryEntityKinds.MAIN_SHIP]: "mainShip",
+  [BinaryEntityKinds.MINI_ROCKET]: "miniRocket",
+  [BinaryEntityKinds.BLIBLIE]: "bliblie",
+  [BinaryEntityKinds.EXPLOSION]: "explosion",
+  [BinaryEntityKinds.PICKUP]: "pickup",
+};
 
 class BinaryWriter {
+  private buffer: ArrayBuffer;
+  private view: DataView;
+  private length: number;
+
   constructor() {
     this.buffer = new ArrayBuffer(256);
     this.view = new DataView(this.buffer);
     this.length = 0;
   }
 
-  reserve(size) {
+  private reserve(size: number): number {
     const requiredLength = this.length + size;
     if (requiredLength > this.buffer.byteLength) {
       let capacity = this.buffer.byteLength;
@@ -70,42 +175,42 @@ class BinaryWriter {
     return offset;
   }
 
-  writeUint8(value) {
+  writeUint8(value: number): void {
     const offset = this.reserve(1);
     this.view.setUint8(offset, value);
   }
 
-  writeInt8(value) {
+  writeInt8(value: number): void {
     const offset = this.reserve(1);
     this.view.setInt8(offset, value);
   }
 
-  writeUint16(value) {
+  writeUint16(value: number): void {
     const offset = this.reserve(2);
     this.view.setUint16(offset, value, true);
   }
 
-  writeInt16(value) {
+  writeInt16(value: number): void {
     const offset = this.reserve(2);
     this.view.setInt16(offset, value, true);
   }
 
-  writeUint32(value) {
+  writeUint32(value: number): void {
     const offset = this.reserve(4);
     this.view.setUint32(offset, value, true);
   }
 
-  writeFloat32(value) {
+  writeFloat32(value: number): void {
     const offset = this.reserve(4);
     this.view.setFloat32(offset, value, true);
   }
 
-  writeFloat64(value) {
+  writeFloat64(value: number): void {
     const offset = this.reserve(8);
     this.view.setFloat64(offset, value, true);
   }
 
-  writeString(value) {
+  writeString(value: string | null): void {
     if (value === null) {
       this.writeUint8(0);
       return;
@@ -124,13 +229,16 @@ class BinaryWriter {
     new Uint8Array(this.buffer, offset, bytes.length).set(bytes);
   }
 
-  finish() {
+  finish(): ArrayBuffer {
     return this.buffer.slice(0, this.length);
   }
 }
 
 class BinaryReader {
-  constructor(data) {
+  private view: DataView;
+  private offset: number;
+
+  constructor(data: ArrayBuffer | ArrayBufferView) {
     if (data instanceof ArrayBuffer) {
       this.view = new DataView(data);
     } else if (ArrayBuffer.isView(data)) {
@@ -141,44 +249,25 @@ class BinaryReader {
     this.offset = 0;
   }
 
-  read(method, size, ...args) {
+  private read(method: keyof DataView, size: number, ...args: unknown[]): number {
     if (this.offset + size > this.view.byteLength) {
       throw new RangeError("Binary message is truncated");
     }
-    const value = this.view[method](this.offset, ...args);
+    const fn = this.view[method] as (...a: unknown[]) => number;
+    const value = fn.call(this.view, this.offset, ...args);
     this.offset += size;
     return value;
   }
 
-  readUint8() {
-    return this.read("getUint8", 1);
-  }
+  readUint8(): number { return this.read("getUint8", 1); }
+  readInt8(): number { return this.read("getInt8", 1); }
+  readUint16(): number { return this.read("getUint16", 2, true); }
+  readInt16(): number { return this.read("getInt16", 2, true); }
+  readUint32(): number { return this.read("getUint32", 4, true); }
+  readFloat32(): number { return this.read("getFloat32", 4, true); }
+  readFloat64(): number { return this.read("getFloat64", 8, true); }
 
-  readInt8() {
-    return this.read("getInt8", 1);
-  }
-
-  readUint16() {
-    return this.read("getUint16", 2, true);
-  }
-
-  readInt16() {
-    return this.read("getInt16", 2, true);
-  }
-
-  readUint32() {
-    return this.read("getUint32", 4, true);
-  }
-
-  readFloat32() {
-    return this.read("getFloat32", 4, true);
-  }
-
-  readFloat64() {
-    return this.read("getFloat64", 8, true);
-  }
-
-  readString() {
+  readString(): string | null {
     const length = this.readUint8();
     if (length === 0) return null;
     if (this.offset + length > this.view.byteLength) {
@@ -194,27 +283,27 @@ class BinaryReader {
     return textDecoder.decode(bytes);
   }
 
-  finish() {
+  finish(): void {
     if (this.offset !== this.view.byteLength) {
       throw new RangeError("Binary message has trailing bytes");
     }
   }
 }
 
-function assertInteger(value, max, field) {
+function assertInteger(value: number, max: number, field: string): void {
   if (!Number.isInteger(value) || value < 0 || value > max) {
     throw new RangeError(`${field} must be an integer from 0 to ${max}`);
   }
 }
 
-function writeFiniteFloat32(writer, value, field) {
+function writeFiniteFloat32(writer: BinaryWriter, value: number, field: string): void {
   if (!Number.isFinite(value)) {
     throw new TypeError(`${field} must be a finite number`);
   }
   writer.writeFloat32(value);
 }
 
-function writeAngle(writer, angle) {
+function writeAngle(writer: BinaryWriter, angle: number): void {
   if (!Number.isFinite(angle)) {
     throw new TypeError("Entity angle must be a finite number");
   }
@@ -222,7 +311,7 @@ function writeAngle(writer, angle) {
   writer.writeInt16(Math.round(normalized * 1000));
 }
 
-function writeEntity(writer, entity) {
+function writeEntity(writer: BinaryWriter, entity: EntitySnapshot): void {
   assertInteger(entity.id, 0xffffffff, "Entity id");
   const kind = ENTITY_KIND_BY_NAME[entity.kind];
   if (!kind) throw new TypeError(`Unsupported entity kind: ${entity.kind}`);
@@ -237,41 +326,53 @@ function writeEntity(writer, entity) {
   writeAngle(writer, entity.angle);
   writeFiniteFloat32(writer, entity.radius, "Entity radius");
 
-  if (entity.kind === "mainShip") {
-    writer.writeString(entity.playerId);
-    writer.writeString(entity.playerName);
-    writeFiniteFloat32(writer, entity.thrust, "Ship thrust");
-    assertInteger(entity.score, 0xffffffff, "Ship score");
-    writer.writeUint32(entity.score);
-    writer.writeUint8(entity.hasShield ? 1 : 0);
-  } else if (entity.kind === "miniRocket") {
-    writer.writeString(entity.ownerPlayerId);
-    writer.writeUint8(entity.fireSeq === null ? 0 : 1);
-    if (entity.fireSeq !== null) {
-      assertInteger(entity.fireSeq, 0xffffffff, "Rocket fire sequence");
-      writer.writeUint32(entity.fireSeq);
-    }
-  } else if (entity.kind === "pickup") {
-    if (entity.effect !== "shield") {
-      throw new TypeError(`Unsupported pickup effect: ${entity.effect}`);
-    }
-    writer.writeUint8(1);
-  } else if (entity.kind === "explosion") {
-    if (entity.particles.length > 255) {
-      throw new RangeError("Explosion exceeds 255 particles");
-    }
-    writer.writeUint8(entity.particles.length);
-    for (const particle of entity.particles) {
-      writeFiniteFloat32(writer, particle.pos.x, "Particle x");
-      writeFiniteFloat32(writer, particle.pos.y, "Particle y");
-      writeFiniteFloat32(writer, particle.radius, "Particle radius");
+  switch (entity.kind) {
+    case "mainShip":
+      writer.writeString(entity.playerId);
+      writer.writeString(entity.playerName);
+      writeFiniteFloat32(writer, entity.thrust, "Ship thrust");
+      assertInteger(entity.score, 0xffffffff, "Ship score");
+      writer.writeUint32(entity.score);
+      writer.writeUint8(entity.hasShield ? 1 : 0);
+      break;
+    case "miniRocket":
+      writer.writeString(entity.ownerPlayerId);
+      writer.writeUint8(entity.fireSeq === null ? 0 : 1);
+      if (entity.fireSeq !== null) {
+        assertInteger(entity.fireSeq, 0xffffffff, "Rocket fire sequence");
+        writer.writeUint32(entity.fireSeq);
+      }
+      break;
+    case "pickup":
+      if (entity.effect !== "shield") {
+        throw new TypeError(`Unsupported pickup effect: ${entity.effect}`);
+      }
+      writer.writeUint8(1);
+      break;
+    case "explosion":
+      if (entity.particles.length > 255) {
+        throw new RangeError("Explosion exceeds 255 particles");
+      }
+      writer.writeUint8(entity.particles.length);
+      for (const particle of entity.particles) {
+        writeFiniteFloat32(writer, particle.pos.x, "Particle x");
+        writeFiniteFloat32(writer, particle.pos.y, "Particle y");
+        writeFiniteFloat32(writer, particle.radius, "Particle radius");
+      }
+      break;
+    case "bliblie":
+      break;
+    default: {
+      const _exhaustive: never = entity;
+      return _exhaustive;
     }
   }
 }
 
-function readEntity(reader) {
-  const id = reader.readUint32();
-  const kind = ENTITY_NAME_BY_KIND[reader.readUint8()];
+function readEntity(reader: BinaryReader): EntitySnapshot {
+  const id = reader.readUint32() as EntityId;
+  const kindNum = reader.readUint8();
+  const kind = ENTITY_NAME_BY_KIND[kindNum];
   if (!kind) throw new TypeError("Unsupported binary entity kind");
   const aliveValue = reader.readUint8();
   if (aliveValue > 1) throw new TypeError("Invalid entity alive flag");
@@ -281,49 +382,106 @@ function readEntity(reader) {
   const velY = reader.readFloat32();
   const angle = reader.readInt16() / 1000;
   const radius = reader.readFloat32();
-  const entity = {
-    id,
-    kind,
-    pos: { x, y },
-    vel: { x: velX, y: velY },
-    x,
-    y,
-    angle,
-    radius,
-    alive: aliveValue === 1,
-    playerId: null,
-  };
+  
+  // Створюємо справжні інстанси Vector2 замість звичайних об'єктів
+  const pos = new Vector2(x, y);
+  const vel = new Vector2(velX, velY);
+  const alive = aliveValue === 1;
 
   if (kind === "mainShip") {
-    entity.playerId = reader.readString();
-    entity.playerName = reader.readString();
-    entity.thrust = reader.readFloat32();
-    entity.score = reader.readUint32();
-    const hasShield = reader.readUint8();
-    if (hasShield > 1) throw new TypeError("Invalid ship shield flag");
-    entity.hasShield = hasShield === 1;
+    return {
+      id,
+      kind,
+      pos,
+      vel,
+      x,
+      y,
+      angle,
+      radius,
+      alive,
+      playerId: reader.readString(),
+      playerName: reader.readString() ?? "",
+      thrust: reader.readFloat32(),
+      score: reader.readUint32(),
+      hasShield: reader.readUint8() === 1,
+    };
   } else if (kind === "miniRocket") {
-    entity.ownerPlayerId = reader.readString();
+    const ownerPlayerId = reader.readString();
     const hasFireSeq = reader.readUint8();
-    if (hasFireSeq > 1) throw new TypeError("Invalid rocket sequence flag");
-    entity.fireSeq = hasFireSeq === 1 ? reader.readUint32() : null;
+    if (hasFireSeq > 1) {
+      throw new TypeError("Invalid rocket sequence flag");
+    }
+    const fireSeq = hasFireSeq === 1 ? reader.readUint32() : null;
+    return {
+      id,
+      kind,
+      pos,
+      vel,
+      x,
+      y,
+      angle,
+      radius,
+      alive,
+      playerId: null,
+      ownerPlayerId,
+      fireSeq,
+    };
   } else if (kind === "pickup") {
     if (reader.readUint8() !== 1) {
       throw new TypeError("Unsupported binary pickup effect");
     }
-    entity.effect = "shield";
+    return {
+      id,
+      kind,
+      pos,
+      vel,
+      x,
+      y,
+      angle,
+      radius,
+      alive,
+      playerId: null,
+      effect: "shield",
+    };
   } else if (kind === "explosion") {
     const particleCount = reader.readUint8();
-    entity.particles = Array.from({ length: particleCount }, () => ({
-      pos: { x: reader.readFloat32(), y: reader.readFloat32() },
+    const particles = Array.from({ length: particleCount }, () => ({
+      pos: new Vector2(reader.readFloat32(), reader.readFloat32()),
       radius: reader.readFloat32(),
     }));
+    return {
+      id,
+      kind,
+      pos,
+      vel,
+      x,
+      y,
+      angle,
+      radius,
+      alive,
+      playerId: null,
+      particles,
+    };
+  } else if (kind === "bliblie") {
+    return {
+      id,
+      kind,
+      pos,
+      vel,
+      x,
+      y,
+      angle,
+      radius,
+      alive,
+      playerId: null,
+    };
+  } else {
+    const _exhaustive: never = kind;
+    throw new TypeError(`Unknown entity kind: ${_exhaustive}`);
   }
-
-  return entity;
 }
 
-export function encodeBinaryMessage(message) {
+export function encodeBinaryMessage(message: BinaryMessage): ArrayBuffer {
   const writer = new BinaryWriter();
   writer.writeUint8(BINARY_PROTOCOL_VERSION);
 
@@ -365,17 +523,18 @@ export function encodeBinaryMessage(message) {
     for (const [playerId, seq] of acknowledgements) {
       writer.writeString(playerId);
       assertInteger(seq, 0xffffffff, "Acknowledged input sequence");
-      writer.writeUint32(seq);
+      writer.writeUint32(seq as number);
     }
     for (const entity of message.entities) writeEntity(writer, entity);
   } else {
-    throw new TypeError(`Unsupported binary message type: ${message.type}`);
+    const _exhaustive: never = message;
+    throw new TypeError(`Unsupported binary message type: ${JSON.stringify(_exhaustive)}`);
   }
 
   return writer.finish();
 }
 
-export function decodeBinaryMessage(data) {
+export function decodeBinaryMessage(data: ArrayBuffer | ArrayBufferView): BinaryMessage {
   const reader = new BinaryReader(data);
   const version = reader.readUint8();
   if (version !== BINARY_PROTOCOL_VERSION) {
@@ -383,12 +542,13 @@ export function decodeBinaryMessage(data) {
   }
 
   const messageType = reader.readUint8();
-  let message;
+  let message: BinaryMessage;
+
   if (messageType === BinaryMessageTypes.INPUT) {
-    const seq = reader.readUint32();
-    const tick = reader.readUint32();
-    const thrust = reader.readInt8();
-    const turn = reader.readInt8();
+    const seq = reader.readUint32() as Seq;
+    const tick = reader.readUint32() as Tick;
+    const thrust = reader.readInt8() as -1 | 0 | 1;
+    const turn = reader.readInt8() as -1 | 0 | 1;
     const fire = reader.readUint8();
     if (![-1, 0, 1].includes(thrust) || ![-1, 0, 1].includes(turn)) {
       throw new TypeError("Invalid binary input values");
@@ -396,18 +556,18 @@ export function decodeBinaryMessage(data) {
     if (fire > 1) throw new TypeError("Invalid binary fire flag");
     message = { type: "input", seq, tick, thrust, turn, fire: fire === 1 };
   } else if (messageType === BinaryMessageTypes.SNAPSHOT) {
-    const tick = reader.readUint32();
+    const tick = reader.readUint32() as Tick;
     const seed = reader.readUint32();
     const serverTime = reader.readFloat64();
     const ackCount = reader.readUint8();
     const entityCount = reader.readUint16();
-    const lastProcessedSeq = {};
+    const lastProcessedSeq: Record<string, Seq> = {};
     for (let i = 0; i < ackCount; i += 1) {
       const playerId = reader.readString();
       if (playerId === null) {
         throw new TypeError("Acknowledgement player id cannot be null");
       }
-      lastProcessedSeq[playerId] = reader.readUint32();
+      lastProcessedSeq[playerId] = reader.readUint32() as Seq;
     }
     const entities = Array.from({ length: entityCount }, () =>
       readEntity(reader),

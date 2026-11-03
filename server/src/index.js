@@ -10,7 +10,7 @@ import { setupWebSocket } from "./ws.js";
 import {
   arenaWidth,
   arenaHeight,
-} from "../../shared/config/settings.js";
+} from "../../shared/config/settings.ts";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

@@ -1,8 +1,8 @@
 import {
   MessageTypes as SharedMessageTypes,
   validateInputMessage,
-} from "../../shared/protocol/messages.js";
-import { decodeJsonMessage } from "../../shared/codec/json.js";
+} from "../../shared/protocol/messages.ts";
+import { decodeJsonMessage } from "../../shared/codec/json.ts";
 
 export const MessageTypes = {
   JOIN: "join",

@@ -1,15 +1,15 @@
 import { createInput } from './input.js';
 import { createLoop } from './loop.js';
 import { loadAll } from '../public/assets/loader.js';
-import { initAudio } from '../../shared/sim/audio.js';
-import { initHud } from '../../shared/sim/hud.js';
-import { Lobby } from '../../shared/sim/lobby.js';
-import { initLobbyRendering } from '../../shared/sim/lobbyRendering.js';
-import { getMiniRocketLaunchState } from '../../shared/sim/miniRocket.js';
-import { createInputMessage } from '../../shared/protocol/messages.js';
-import { integrateShip } from '../../shared/sim/integrate.js';
-import { wrap } from '../../shared/sim/arena.js';
-import { rocketTtl } from '../../shared/config/settings.js';
+import { initAudio } from '../../shared/sim/audio.ts';
+import { initHud } from './hud.js';
+import { Lobby } from './lobby.js';
+import { initLobbyRendering } from './lobbyRendering.js';
+import { getMiniRocketLaunchState } from '../../shared/sim/miniRocket.ts';
+import { createInputMessage } from '../../shared/protocol/messages.ts';
+import { integrateShip } from '../../shared/sim/integrate.ts';
+import { wrap } from '../../shared/sim/arena.ts';
+import { rocketTtl } from '../../shared/config/settings.ts';
 import { getInterpolatedEntities } from './interpolation.js';
 import {
   drawShip,
@@ -25,7 +25,7 @@ import {
   arenaHeight,
   arenaWidth,
   step,
-} from '../../shared/config/settings.js';
+} from '../../shared/config/settings.ts';
 
 const hud = initHud();
 

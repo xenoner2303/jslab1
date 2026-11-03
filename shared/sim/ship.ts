@@ -1,17 +1,39 @@
-import { Entity } from './entity.js';
-
+import { Entity } from './entity.ts';
 import {
   maxShipHp,
   shipRespawnTime,
-} from '../config/settings.js';
-import { Vector2 } from './vector.js';
-import { integrateShip } from './integrate.js';
+} from '../config/settings.ts';
+import { Vector2 } from './vector.ts';
+import type { BehaviorContext } from './entity.ts';
+import { integrateShip } from './integrate.ts';
+import type { Seq } from '../codec/binary.ts';
 
-class Ship extends Entity {
-  #hp = 0;
-  #respawnTimer = 0;
+export interface ShipInputHandler {
+  isJustPressed(code: string): boolean;
+  consumeFireSequence(): Seq | null;
+  isDown(code: string): boolean;
+}
 
-  constructor(pos, vel, radius, angle, input, playerName) {
+export class Ship extends Entity {
+  #hp: number = 0;
+  #respawnTimer: number = 0;
+
+  public thrust: number;
+  public input: ShipInputHandler;
+  public fireRequested: boolean;
+  public fireSequence: Seq | null;
+  public score: number;
+  public hasShield: boolean;
+  public playerName: string;
+
+  constructor(
+    pos: Vector2, 
+    vel: Vector2, 
+    radius: number, 
+    angle: number, 
+    input: ShipInputHandler, 
+    playerName: string
+  ) {
     super(pos, vel, radius, true, angle, 'mainShip');
 
     this.thrust = 0;
@@ -24,11 +46,11 @@ class Ship extends Entity {
     this.playerName = playerName;
   }
 
-  get hp() {
+  get hp(): number {
     return this.#hp;
   }
 
-  hit(amount) {
+  hit(amount: number): boolean {
     if (this.hasShield) {
       this.hasShield = false;
       return false;
@@ -48,8 +70,7 @@ class Ship extends Entity {
     return false;
   }
 
-  updateRespawn(dt) {
-    // respawn timer
+  updateRespawn(dt: number): boolean {
     if (this.alive) return false;
 
     this.#respawnTimer -= dt;
@@ -63,7 +84,7 @@ class Ship extends Entity {
     return false;
   }
 
-  update(dt, context) {
+  update(dt: number, context: BehaviorContext = {}): void {
     if (!this.alive) return;
 
     super.update(dt, context);
@@ -103,13 +124,9 @@ class Ship extends Entity {
       dt
     );
 
-    this.pos.x = nextState.pos.x;
-    this.pos.y = nextState.pos.y;
-    this.vel.x = nextState.vel.x;
-    this.vel.y = nextState.vel.y;
+    this.pos = nextState.pos;
+    this.vel = nextState.vel;
     this.angle = nextState.angle;
     this.thrust = nextState.thrust;
   }
 }
-
-export { Ship };

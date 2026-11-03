@@ -1,11 +1,11 @@
 import {
   decodeJsonMessage,
   encodeJsonMessage,
-} from '../../shared/codec/json.js';
+} from '../../shared/codec/json.ts';
 import {
   decodeBinaryMessage,
   encodeBinaryMessage,
-} from '../../shared/codec/binary.js';
+} from '../../shared/codec/binary.ts';
 
 export class GameConnection extends EventTarget {
   #url;

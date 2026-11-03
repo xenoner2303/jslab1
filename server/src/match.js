@@ -1,19 +1,19 @@
 import { randomInt } from "node:crypto";
 import { performance } from "node:perf_hooks";
-import { World } from "../../shared/sim/world.js";
-import { Ship } from "../../shared/sim/ship.js";
-import { Vector2 } from "../../shared/sim/vector.js";
-import { wrap } from "../../shared/sim/arena.js";
+import { World } from "../../shared/sim/world.ts";
+import { Ship } from "../../shared/sim/ship.ts";
+import { Vector2 } from "../../shared/sim/vector.ts";
+import { wrap } from "../../shared/sim/arena.ts";
 import {
   createSnapshotMessage,
-} from "../../shared/protocol/messages.js";
+} from "../../shared/protocol/messages.ts";
 import {
   shipHeight,
   shipWidth,
   arenaWidth,
   arenaHeight,
   simulationTickRate,
-} from "../../shared/config/settings.js";
+} from "../../shared/config/settings.ts";
 
 const TICK_INTERVAL_MS = 1000 / simulationTickRate;
 const MAX_QUEUED_INPUTS = 120;

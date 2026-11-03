@@ -9,6 +9,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "start": "node server/src/index.js",
+    "typecheck": "tsc --noEmit -p .",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
