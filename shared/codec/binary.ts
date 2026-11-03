@@ -17,102 +17,26 @@
  * Strings are UTF-8 with a u8 byte length; 0 means null. Decoding also fills
  * pos/vel from x/y/velX/velY. Angles are rounded to 0.001-radian steps.
  */
+import {
+  BinaryMessageSchema,
+  type BinaryMessage,
+  type ClientInputMessage,
+  type EntitySnapshot,
+  type Seq,
+  type SnapshotMessage,
+  type Tick,
+} from "../protocol.ts";
 import { Vector2 } from "../sim/vector.ts";
 
-export type EntityId = number & { readonly __brand: "EntityId" };
-export type Tick = number & { readonly __brand: "Tick" };
-export type Seq = number & { readonly __brand: "Seq" };
-
-// Використовуємо клас Vector2 напряму замість дублювання об'єктів
-export type EntitySnapshot =
-  | {
-      readonly id: EntityId;
-      readonly kind: "mainShip";
-      readonly pos: Vector2;
-      readonly vel: Vector2;
-      readonly x: number;
-      readonly y: number;
-      readonly angle: number;
-      readonly radius: number;
-      readonly alive: boolean;
-      readonly playerId: string | null;
-      readonly playerName: string;
-      readonly thrust: number;
-      readonly score: number;
-      readonly hasShield: boolean;
-    }
-  | {
-      readonly id: EntityId;
-      readonly kind: "miniRocket";
-      readonly pos: Vector2;
-      readonly vel: Vector2;
-      readonly x: number;
-      readonly y: number;
-      readonly angle: number;
-      readonly radius: number;
-      readonly alive: boolean;
-      readonly playerId: string | null;
-      readonly ownerPlayerId: string | null;
-      readonly fireSeq: number | null;
-    }
-  | {
-      readonly id: EntityId;
-      readonly kind: "bliblie";
-      readonly pos: Vector2;
-      readonly vel: Vector2;
-      readonly x: number;
-      readonly y: number;
-      readonly angle: number;
-      readonly radius: number;
-      readonly alive: boolean;
-      readonly playerId: string | null;
-    }
-  | {
-      readonly id: EntityId;
-      readonly kind: "pickup";
-      readonly pos: Vector2;
-      readonly vel: Vector2;
-      readonly x: number;
-      readonly y: number;
-      readonly angle: number;
-      readonly radius: number;
-      readonly alive: boolean;
-      readonly playerId: string | null;
-      readonly effect: "shield";
-    }
-  | {
-      readonly id: EntityId;
-      readonly kind: "explosion";
-      readonly pos: Vector2;
-      readonly vel: Vector2;
-      readonly x: number;
-      readonly y: number;
-      readonly angle: number;
-      readonly radius: number;
-      readonly alive: boolean;
-      readonly playerId: string | null;
-      readonly particles: readonly { readonly pos: Vector2; readonly radius: number }[];
-    };
-
-export type InputMessage = {
-  readonly type: "input";
-  readonly seq: Seq;
-  readonly tick: Tick;
-  readonly thrust: -1 | 0 | 1;
-  readonly turn: -1 | 0 | 1;
-  readonly fire: boolean;
-};
-
-export type SnapshotMessage = {
-  readonly type: "snapshot";
-  readonly tick: Tick;
-  readonly lastProcessedSeq: Readonly<Record<string, Seq>>;
-  readonly entities: readonly EntitySnapshot[];
-  readonly seed: number;
-  readonly serverTime: number;
-};
-
-export type BinaryMessage = InputMessage | SnapshotMessage;
+export type {
+  BinaryMessage,
+  EntitySnapshot,
+  Seq,
+  SnapshotMessage,
+  Tick,
+} from "../protocol.ts";
+export type EntityId = EntitySnapshot["id"];
+export type InputMessage = ClientInputMessage;
 
 export const BinaryMessageTypes = {
   INPUT: 1,
@@ -389,6 +313,12 @@ function readEntity(reader: BinaryReader): EntitySnapshot {
   const alive = aliveValue === 1;
 
   if (kind === "mainShip") {
+    const playerId = reader.readString();
+    const playerName = reader.readString();
+    const thrust = reader.readFloat32();
+    const score = reader.readUint32();
+    const hasShield = reader.readUint8();
+    if (hasShield > 1) throw new TypeError("Invalid ship shield flag");
     return {
       id,
       kind,
@@ -399,11 +329,11 @@ function readEntity(reader: BinaryReader): EntitySnapshot {
       angle,
       radius,
       alive,
-      playerId: reader.readString(),
-      playerName: reader.readString() ?? "",
-      thrust: reader.readFloat32(),
-      score: reader.readUint32(),
-      hasShield: reader.readUint8() === 1,
+      playerId,
+      playerName: playerName ?? "",
+      thrust,
+      score,
+      hasShield: hasShield === 1,
     };
   } else if (kind === "miniRocket") {
     const ownerPlayerId = reader.readString();
@@ -411,7 +341,7 @@ function readEntity(reader: BinaryReader): EntitySnapshot {
     if (hasFireSeq > 1) {
       throw new TypeError("Invalid rocket sequence flag");
     }
-    const fireSeq = hasFireSeq === 1 ? reader.readUint32() : null;
+    const fireSeq = hasFireSeq === 1 ? (reader.readUint32() as Seq) : null;
     return {
       id,
       kind,
@@ -482,53 +412,48 @@ function readEntity(reader: BinaryReader): EntitySnapshot {
 }
 
 export function encodeBinaryMessage(message: BinaryMessage): ArrayBuffer {
+  const validation = BinaryMessageSchema.safeParse(message);
+  if (!validation.success) {
+    throw new TypeError(`Invalid binary message: ${validation.error.message}`);
+  }
+
   const writer = new BinaryWriter();
   writer.writeUint8(BINARY_PROTOCOL_VERSION);
 
-  if (message.type === "input") {
-    writer.writeUint8(BinaryMessageTypes.INPUT);
-    assertInteger(message.seq, 0xffffffff, "Input sequence");
-    assertInteger(message.tick, 0xffffffff, "Input tick");
-    if (![-1, 0, 1].includes(message.thrust)) {
-      throw new RangeError("Input thrust must be -1, 0, or 1");
-    }
-    if (![-1, 0, 1].includes(message.turn)) {
-      throw new RangeError("Input turn must be -1, 0, or 1");
-    }
-    if (typeof message.fire !== "boolean") {
-      throw new TypeError("Input fire must be a boolean");
-    }
-    writer.writeUint32(message.seq);
-    writer.writeUint32(message.tick);
-    writer.writeInt8(message.thrust);
-    writer.writeInt8(message.turn);
-    writer.writeUint8(message.fire ? 1 : 0);
-  } else if (message.type === "snapshot") {
-    writer.writeUint8(BinaryMessageTypes.SNAPSHOT);
-    assertInteger(message.tick, 0xffffffff, "Snapshot tick");
-    assertInteger(message.seed, 0xffffffff, "Snapshot seed");
-    if (!Number.isFinite(message.serverTime)) {
-      throw new TypeError("Snapshot serverTime must be a finite number");
-    }
-    const acknowledgements = Object.entries(message.lastProcessedSeq);
-    if (acknowledgements.length > 255 || message.entities.length > 65535) {
-      throw new RangeError("Snapshot contains too many records");
-    }
+  switch (message.type) {
+    case "input":
+      writer.writeUint8(BinaryMessageTypes.INPUT);
+      writer.writeUint32(message.seq);
+      writer.writeUint32(message.tick);
+      writer.writeInt8(message.thrust);
+      writer.writeInt8(message.turn);
+      writer.writeUint8(message.fire ? 1 : 0);
+      break;
+    case "snapshot": {
+      writer.writeUint8(BinaryMessageTypes.SNAPSHOT);
+      const acknowledgements = Object.entries(message.lastProcessedSeq);
+      if (acknowledgements.length > 255) {
+        throw new RangeError("Snapshot contains too many acknowledgements");
+      }
 
-    writer.writeUint32(message.tick);
-    writer.writeUint32(message.seed);
-    writer.writeFloat64(message.serverTime);
-    writer.writeUint8(acknowledgements.length);
-    writer.writeUint16(message.entities.length);
-    for (const [playerId, seq] of acknowledgements) {
-      writer.writeString(playerId);
-      assertInteger(seq, 0xffffffff, "Acknowledged input sequence");
-      writer.writeUint32(seq as number);
+      writer.writeUint32(message.tick);
+      writer.writeUint32(message.seed);
+      writer.writeFloat64(message.serverTime);
+      writer.writeUint8(acknowledgements.length);
+      writer.writeUint16(message.entities.length);
+      for (const [playerId, seq] of acknowledgements) {
+        writer.writeString(playerId);
+        writer.writeUint32(seq);
+      }
+      for (const entity of message.entities) writeEntity(writer, entity);
+      break;
     }
-    for (const entity of message.entities) writeEntity(writer, entity);
-  } else {
-    const _exhaustive: never = message;
-    throw new TypeError(`Unsupported binary message type: ${JSON.stringify(_exhaustive)}`);
+    default: {
+      const _exhaustive: never = message;
+      throw new TypeError(
+        `Unsupported binary message type: ${JSON.stringify(_exhaustive)}`,
+      );
+    }
   }
 
   return writer.finish();
@@ -543,47 +468,62 @@ export function decodeBinaryMessage(data: ArrayBuffer | ArrayBufferView): Binary
 
   const messageType = reader.readUint8();
   let message: BinaryMessage;
-
-  if (messageType === BinaryMessageTypes.INPUT) {
-    const seq = reader.readUint32() as Seq;
-    const tick = reader.readUint32() as Tick;
-    const thrust = reader.readInt8() as -1 | 0 | 1;
-    const turn = reader.readInt8() as -1 | 0 | 1;
-    const fire = reader.readUint8();
-    if (![-1, 0, 1].includes(thrust) || ![-1, 0, 1].includes(turn)) {
-      throw new TypeError("Invalid binary input values");
-    }
-    if (fire > 1) throw new TypeError("Invalid binary fire flag");
-    message = { type: "input", seq, tick, thrust, turn, fire: fire === 1 };
-  } else if (messageType === BinaryMessageTypes.SNAPSHOT) {
-    const tick = reader.readUint32() as Tick;
-    const seed = reader.readUint32();
-    const serverTime = reader.readFloat64();
-    const ackCount = reader.readUint8();
-    const entityCount = reader.readUint16();
-    const lastProcessedSeq: Record<string, Seq> = {};
-    for (let i = 0; i < ackCount; i += 1) {
-      const playerId = reader.readString();
-      if (playerId === null) {
-        throw new TypeError("Acknowledgement player id cannot be null");
+  switch (messageType) {
+    case BinaryMessageTypes.INPUT: {
+      const seq = reader.readUint32() as Seq;
+      const tick = reader.readUint32() as Tick;
+      const thrust = reader.readInt8();
+      const turn = reader.readInt8();
+      const fire = reader.readUint8();
+      if (![-1, 0, 1].includes(thrust) || ![-1, 0, 1].includes(turn)) {
+        throw new TypeError("Invalid binary input values");
       }
-      lastProcessedSeq[playerId] = reader.readUint32() as Seq;
+      if (fire > 1) throw new TypeError("Invalid binary fire flag");
+      message = {
+        type: "input",
+        seq,
+        tick,
+        thrust: thrust as -1 | 0 | 1,
+        turn: turn as -1 | 0 | 1,
+        fire: fire === 1,
+      };
+      break;
     }
-    const entities = Array.from({ length: entityCount }, () =>
-      readEntity(reader),
-    );
-    message = {
-      type: "snapshot",
-      tick,
-      lastProcessedSeq,
-      entities,
-      seed,
-      serverTime,
-    };
-  } else {
-    throw new TypeError(`Unsupported binary message type: ${messageType}`);
+    case BinaryMessageTypes.SNAPSHOT: {
+      const tick = reader.readUint32() as Tick;
+      const seed = reader.readUint32();
+      const serverTime = reader.readFloat64();
+      const ackCount = reader.readUint8();
+      const entityCount = reader.readUint16();
+      const lastProcessedSeq: Record<string, Seq> = {};
+      for (let i = 0; i < ackCount; i += 1) {
+        const playerId = reader.readString();
+        if (playerId === null) {
+          throw new TypeError("Acknowledgement player id cannot be null");
+        }
+        lastProcessedSeq[playerId] = reader.readUint32() as Seq;
+      }
+      const entities = Array.from({ length: entityCount }, () =>
+        readEntity(reader),
+      );
+      message = {
+        type: "snapshot",
+        tick,
+        lastProcessedSeq,
+        entities,
+        seed,
+        serverTime,
+      };
+      break;
+    }
+    default:
+      throw new TypeError(`Unsupported binary message type: ${messageType}`);
   }
 
   reader.finish();
+  const validation = BinaryMessageSchema.safeParse(message);
+  if (!validation.success) {
+    throw new TypeError(`Invalid binary message: ${validation.error.message}`);
+  }
   return message;
 }
