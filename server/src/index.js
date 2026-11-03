@@ -4,9 +4,9 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
-import { config } from "./config.js";
-import { RoomManager } from "./rooms.js";
-import { setupWebSocket } from "./ws.js";
+import { config } from "./config.ts";
+import { RoomManager } from "./rooms.ts";
+import { setupWebSocket } from "./ws.ts";
 import {
   arenaWidth,
   arenaHeight,

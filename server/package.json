@@ -4,11 +4,15 @@
   "type": "module",
   "main": "src/index.js",
   "scripts": {
+    "typecheck": "tsc --noEmit -p .",
     "start": "node --env-file=.env src/index.js",
     "dev": "node --watch --env-file=.env src/index.js"
   },
   "dependencies": {
-    "ws": "^8.18.0",
-    "shared": "file:../shared"
+    "shared": "file:../shared",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.18.2"
   }
 }

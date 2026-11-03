@@ -1,4 +1,4 @@
-import { on } from "node:events";
+даваimport { on } from "node:events";
 import { createWriteStream } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
