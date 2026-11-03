@@ -1,3 +1,5 @@
+[![CI Status](https://github.com/xenoner2303/jslab1/actions/workflows/ci.yml/badge.svg)](https://github.com/xenoner2303/jslab1/actions/workflows/ci.yml)
+
 ## M4
 ### 1. Framework Decision
 I kept the lobby and HUD built with vanilla DOM and TypeScript. This avoids adding a framework while time and infrastructure are limited.
