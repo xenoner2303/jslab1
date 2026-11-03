@@ -11,9 +11,15 @@
   "scripts": {
     "dev": "npm run dev --workspace=client",
     "build": "npm run build --workspace=client",
-    "start": "node server/src/index.js"
+    "start": "node server/src/index.ts",
+    "typecheck": "npm run typecheck --workspaces --if-present"
   },
   "devDependencies": {
-    "prettier": "^3.9.9"
+    "@types/node": "^24.19.2",
+    "prettier": "^3.9.9",
+    "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "zod": "^4.6.7"
   }
 }
