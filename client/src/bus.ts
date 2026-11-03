@@ -17,7 +17,7 @@ export class Bus<Events extends EventMap> {
       this.#listeners.set(event, listeners);
     }
 
-    // reconnects event payload types lost to map erasure
+    // The listener map erases key-specific payloads, so this cast restores the handler type for storage.
     const listener = handler as EventHandler<Events[keyof Events]>;
     listeners.add(listener);
     return () => {

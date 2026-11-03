@@ -124,7 +124,7 @@ export class World extends EventTarget {
     return nearest;
   }
 
-  step(dt: number, inputs?: unknown): void {
+  step(dt: number): void {
     let localBlibliesCount = 0;
     let localPickupItemsCount = 0;
 

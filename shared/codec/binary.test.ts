@@ -2,6 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { decodeBinaryMessage, encodeBinaryMessage } from "./binary.ts";
 import { Vector2 } from "../sim/vector.ts";
+import {
+  InputMessageSchema,
+  SnapshotMessageSchema,
+} from "../protocol.ts";
 import type {
   InputMessage,
   SnapshotMessage,
@@ -11,16 +15,16 @@ const float32 = (value: number): number => new Float32Array([value])[0]!;
 const quantizedAngle = (angle: number): number =>
   Math.round(Math.atan2(Math.sin(angle), Math.cos(angle)) * 1000) / 1000;
 
-const input: InputMessage = {
+const input: InputMessage = InputMessageSchema.parse({
   type: "input",
   seq: 42,
   tick: 100,
   thrust: 1,
   turn: -1,
   fire: true,
-};
+});
 
-const snapshot: SnapshotMessage = {
+const snapshot: SnapshotMessage = SnapshotMessageSchema.parse({
   type: "snapshot",
   tick: 100,
   lastProcessedSeq: { "player-1": 42, "player-2": 39 },
@@ -99,7 +103,7 @@ const snapshot: SnapshotMessage = {
   ],
   seed: 123456,
   serverTime: 1730000000123,
-};
+});
 
 function expectedSnapshot() {
   return {
@@ -151,13 +155,13 @@ test("binary codec accepts typed-array views with offsets", () => {
 
 test("snapshot encoding grows its buffer for larger messages", () => {
   const baseEntity = snapshot.entities[2]!;
-  const largeSnapshot: SnapshotMessage = {
+  const largeSnapshot = SnapshotMessageSchema.parse({
     ...snapshot,
     entities: Array.from({ length: 20 }, (_, index) => ({
       ...baseEntity,
       id: index + 1,
     })),
-  };
+  });
   const decoded = decodeBinaryMessage(encodeBinaryMessage(largeSnapshot));
   if (decoded.type !== "snapshot") throw new Error("Expected snapshot");
   assert.equal(

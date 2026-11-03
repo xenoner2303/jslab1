@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  EntitySnapshotSchema,
   parseClientMessage,
   parseServerMessage,
 } from "./protocol.ts";
 import { getCodec } from "./codec/index.ts";
 import { Vector2 } from "./sim/vector.ts";
-import type { EntitySnapshot } from "./protocol.ts";
 
-const shipState: EntitySnapshot = {
+const shipState = EntitySnapshotSchema.parse({
   id: 1,
   kind: "mainShip",
   pos: new Vector2(10, 20),
@@ -23,7 +23,7 @@ const shipState: EntitySnapshot = {
   thrust: 0,
   score: 0,
   hasShield: false,
-};
+});
 
 test("client schema parses join, input, and chat messages", () => {
   assert.equal(parseClientMessage({ type: "join", room: "room-1", name: "Pilot" }).success, true);

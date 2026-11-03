@@ -112,7 +112,24 @@ export class GameConnection {
         socket.close(4002, 'Invalid server message');
         return;
       }
-      this.#events.emit(result.data.type, result.data);
+      switch (result.data.type) {
+        case 'joined':
+          this.#events.emit('joined', result.data);
+          break;
+        case 'snapshot':
+          this.#events.emit('snapshot', result.data);
+          break;
+        case 'chat':
+          this.#events.emit('chat', result.data);
+          break;
+        case 'roster':
+          this.#events.emit('roster', result.data);
+          break;
+        default: {
+          const exhaustiveCheck: never = result.data;
+          throw new TypeError(`Unsupported server message: ${exhaustiveCheck}`);
+        }
+      }
     } catch (error: unknown) {
       console.error('Failed to parse incoming WebSocket message:', error);
       socket.close(4002, 'Invalid server message');
