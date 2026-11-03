@@ -1,10 +1,10 @@
 import { WebSocket, WebSocketServer } from "ws";
 import { performance } from "node:perf_hooks";
 import { validateMessage, MessageTypes } from "./protocol.js";
-import { validateInputMessage } from "../../shared/protocol/messages.js";
-import { decodeBinaryMessage } from "../../shared/codec/binary.js";
+import { validateInputMessage } from "../../shared/protocol/messages.ts";
+import { decodeBinaryMessage } from "../../shared/codec/binary.ts";
 import { config } from "./config.js";
-import { encodeJsonMessage } from "../../shared/codec/json.js";
+import { encodeJsonMessage } from "../../shared/codec/json.ts";
 
 function createNetworkSimulation(req) {
   const params = new URL(req.url, "http://localhost").searchParams;

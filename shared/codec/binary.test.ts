@@ -1,30 +1,38 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { decodeBinaryMessage, encodeBinaryMessage } from "./binary.js";
+import { decodeBinaryMessage, encodeBinaryMessage } from "./binary.ts";
+import { Vector2 } from "../sim/vector.ts";
+import type {
+  EntityId,
+  InputMessage,
+  SnapshotMessage,
+  Tick,
+  Seq,
+} from "./binary.ts";
 
-const float32 = (value) => new Float32Array([value])[0];
-const quantizedAngle = (angle) =>
+const float32 = (value: number): number => new Float32Array([value])[0]!;
+const quantizedAngle = (angle: number): number =>
   Math.round(Math.atan2(Math.sin(angle), Math.cos(angle)) * 1000) / 1000;
 
-const input = {
-  type: "input",
-  seq: 42,
-  tick: 100,
-  thrust: 1,
-  turn: -1,
+const input: InputMessage = {
+  type: "input" as const,
+  seq: 42 as Seq,
+  tick: 100 as Tick,
+  thrust: 1 as const,
+  turn: -1 as const,
   fire: true,
 };
 
-const snapshot = {
-  type: "snapshot",
-  tick: 100,
-  lastProcessedSeq: { "player-1": 42, "player-2": 39 },
+const snapshot: SnapshotMessage = {
+  type: "snapshot" as const,
+  tick: 100 as Tick,
+  lastProcessedSeq: { "player-1": 42 as Seq, "player-2": 39 as Seq },
   entities: [
     {
-      id: 1,
-      kind: "mainShip",
-      pos: { x: 100.25, y: 200.5 },
-      vel: { x: 1.25, y: -2.5 },
+      id: 1 as EntityId,
+      kind: "mainShip" as const,
+      pos: new Vector2(100.25, 200.5),
+      vel: new Vector2(1.25, -2.5),
       x: 100.25,
       y: 200.5,
       angle: Math.PI / 2,
@@ -37,10 +45,10 @@ const snapshot = {
       hasShield: true,
     },
     {
-      id: 2,
-      kind: "miniRocket",
-      pos: { x: 11.5, y: 22.25 },
-      vel: { x: 3.5, y: 4.25 },
+      id: 2 as EntityId,
+      kind: "miniRocket" as const,
+      pos: new Vector2(11.5, 22.25),
+      vel: new Vector2(3.5, 4.25),
       x: 11.5,
       y: 22.25,
       angle: -0.75,
@@ -51,10 +59,10 @@ const snapshot = {
       fireSeq: 42,
     },
     {
-      id: 3,
-      kind: "bliblie",
-      pos: { x: 1.5, y: 2.5 },
-      vel: { x: -3.5, y: 4.5 },
+      id: 3 as EntityId,
+      kind: "bliblie" as const,
+      pos: new Vector2(1.5, 2.5),
+      vel: new Vector2(-3.5, 4.5),
       x: 1.5,
       y: 2.5,
       angle: 0.125,
@@ -63,23 +71,23 @@ const snapshot = {
       playerId: null,
     },
     {
-      id: 4,
-      kind: "pickup",
-      pos: { x: 8.5, y: 9.5 },
-      vel: { x: 0, y: 0 },
+      id: 4 as EntityId,
+      kind: "pickup" as const,
+      pos: new Vector2(8.5, 9.5),
+      vel: new Vector2(0, 0),
       x: 8.5,
       y: 9.5,
       angle: 0,
       radius: 5.5,
       alive: true,
       playerId: null,
-      effect: "shield",
+      effect: "shield" as const,
     },
     {
-      id: 5,
-      kind: "explosion",
-      pos: { x: 40.5, y: 50.25 },
-      vel: { x: 0, y: 0 },
+      id: 5 as EntityId,
+      kind: "explosion" as const,
+      pos: new Vector2(40.5, 50.25),
+      vel: new Vector2(0, 0),
       x: 40.5,
       y: 50.25,
       angle: 0,
@@ -87,8 +95,8 @@ const snapshot = {
       alive: true,
       playerId: null,
       particles: [
-        { pos: { x: 1.25, y: 2.5 }, radius: 0.75 },
-        { pos: { x: -3.5, y: 4.25 }, radius: 1.5 },
+        { pos: new Vector2(1.25, 2.5), radius: 0.75 },
+        { pos: new Vector2(-3.5, 4.25), radius: 1.5 },
       ],
     },
   ],
@@ -103,18 +111,18 @@ function expectedSnapshot() {
       ...entity,
       angle: quantizedAngle(entity.angle),
       radius: float32(entity.radius),
-      pos: { x: float32(entity.x), y: float32(entity.y) },
-      vel: { x: float32(entity.vel.x), y: float32(entity.vel.y) },
+      pos: new Vector2(float32(entity.x), float32(entity.y)),
+      vel: new Vector2(float32(entity.vel.x), float32(entity.vel.y)),
       x: float32(entity.x),
       y: float32(entity.y),
       ...(entity.kind === "mainShip" ? { thrust: float32(entity.thrust) } : {}),
       ...(entity.kind === "explosion"
         ? {
             particles: entity.particles.map((particle) => ({
-              pos: {
-                x: float32(particle.pos.x),
-                y: float32(particle.pos.y),
-              },
+              pos: new Vector2(
+                float32(particle.pos.x),
+                float32(particle.pos.y),
+              ),
               radius: float32(particle.radius),
             })),
           }
@@ -145,15 +153,18 @@ test("binary codec accepts typed-array views with offsets", () => {
 });
 
 test("snapshot encoding grows its buffer for larger messages", () => {
+  const baseEntity = snapshot.entities[2]!;
   const largeSnapshot = {
     ...snapshot,
     entities: Array.from({ length: 20 }, (_, index) => ({
-      ...snapshot.entities[2],
-      id: index + 1,
+      ...baseEntity,
+      id: (index + 1) as EntityId,
     })),
   };
+  const decoded = decodeBinaryMessage(encodeBinaryMessage(largeSnapshot));
+  if (decoded.type !== "snapshot") throw new Error("Expected snapshot");
   assert.equal(
-    decodeBinaryMessage(encodeBinaryMessage(largeSnapshot)).entities.length,
+    decoded.entities.length,
     largeSnapshot.entities.length,
   );
 });

@@ -1,22 +1,26 @@
-function circleCheck(a, b) {
-  // a nd b - entities
-  const vectorBetween = a.pos.sub(b.pos);
+import { Vector2 } from "./vector.ts";
 
+export type Collidable = {
+  pos: Vector2;
+  radius: number;
+};
+
+export function circleCheck(a: Collidable, b: Collidable): boolean {
+  const vectorBetween = a.pos.sub(b.pos);
   return vectorBetween.length() <= a.radius + b.radius;
 }
 
-function entitiesCollision(entities) {
+export function entitiesCollision<T extends Collidable>(entities: readonly T[]): [T, T][] {
   if (entities.length <= 1) return [];
 
-  const collisions = [];
+  const collisions: [T, T][] = [];
 
   for (let i = 0; i < entities.length; i++) {
     for (let j = i + 1; j < entities.length; j++) {
-      // to avoid dubles
       const a = entities[i];
       const b = entities[j];
 
-      if (circleCheck(a, b)) {
+      if (a && b && circleCheck(a, b)) {
         collisions.push([a, b]);
       }
     }
@@ -25,7 +29,7 @@ function entitiesCollision(entities) {
   return collisions;
 }
 
-function checkSpot(position, radius, entities) {
+export function checkSpot(position: Vector2, radius: number, entities: readonly Collidable[]): boolean {
   for (const entity of entities) {
     const distance = position.sub(entity.pos).length();
 
@@ -36,5 +40,3 @@ function checkSpot(position, radius, entities) {
 
   return true;
 }
-
-export { circleCheck, entitiesCollision, checkSpot };

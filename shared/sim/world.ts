@@ -1,11 +1,12 @@
-import { BliBlie } from './bliblie.js';
-import { Entity } from './entity.js';
-import { Vector2 } from './vector.js';
-import { applyHoming } from './homing.js';
-import { bounce } from './arena.js';
-import { MiniRocket, getMiniRocketLaunchState } from './miniRocket.js';
-import { entitiesCollision, checkSpot } from './collision.js';
-import { Explosion } from './explosion.js';
+import { BliBlie } from './bliblie.ts';
+import { Entity } from './entity.ts';
+import type { BehaviorContext } from './entity.ts';
+import { Vector2 } from './vector.ts';
+import { applyHoming } from './homing.ts';
+import { bounce } from './arena.ts';
+import { MiniRocket, getMiniRocketLaunchState } from './miniRocket.ts';
+import { entitiesCollision, checkSpot } from './collision.ts';
+import { Explosion } from './explosion.ts';
 import {
   pickupItemsCount,
   blibliesCount,
@@ -17,16 +18,24 @@ import {
   shieldWidth,
   shieldHeight,
   bliblieScreamTimer,
-} from '../config/settings.js';
-import { Pickup } from './pickup.js';
-import { createSeededRandom } from './prng.js';
+} from '../config/settings.ts';
+import { Pickup } from './pickup.ts';
+import { createSeededRandom } from './prng.ts';
+import type { EntityId } from '../codec/binary.ts';
+import type { Ship } from './ship.ts';
 
-class World extends EventTarget {
-  #entities = new Map(); // entities storage/ key - id
+export class World extends EventTarget {
+  #entities = new Map<EntityId, Entity>();
   #pickupItems = ['shield'];
-  #shipKillCount = new Map();
+  #shipKillCount = new Map<Ship, number>();
 
-  constructor(width, height, seed = 12345) {
+  public width: number;
+  public height: number;
+  public seed: number;
+  public random: () => number;
+  public bliblieScreamTimer: number;
+
+  constructor(width: number, height: number, seed: number = 12345) {
     if (!Number.isFinite(width) || !Number.isFinite(height)) {
       throw new Error('Trying to create world entity with no num edges');
     }
@@ -40,13 +49,12 @@ class World extends EventTarget {
     this.bliblieScreamTimer = bliblieScreamTimer;
   }
 
-  #getRandomFreeSpot(radius) {
+  #getRandomFreeSpot(radius: number): Vector2 {
     let potentialSpot = new Vector2(
       this.random() * this.width,
       this.random() * this.height
     );
     const aliveEntities = [...this].filter((e) => e.alive);
-    // const [one, two] = [1, 2];
 
     while (!checkSpot(potentialSpot, radius, aliveEntities)) {
       potentialSpot = new Vector2(
@@ -58,50 +66,48 @@ class World extends EventTarget {
     return potentialSpot;
   }
 
-  spawn(e) {
+  spawn(e: Entity): void {
     if (!(e instanceof Entity)) {
       throw new Error('Trying add noEntity to entities');
     }
 
     this.#entities.set(e.id, e);
 
-    if (e.kind == 'mainShip') {
-      this.#shipKillCount.set(e, 0); // initiate kill count
+    if (e.kind === 'mainShip') {
+      this.#shipKillCount.set(e as Ship, 0);
     }
   }
 
-  despawn(id) {
-    let entity = this.#entities.get(id);
+  despawn(id: EntityId): void {
+    const entity = this.#entities.get(id);
 
     if (entity != null) {
       entity.alive = false;
     }
   }
 
-  remove(id) {
+  remove(id: EntityId): void {
     this.#entities.delete(id);
   }
 
-  get(id) {
+  get(id: EntityId): Entity | undefined {
     return this.#entities.get(id);
   }
 
-  [Symbol.iterator]() {
-    // availble us use for entity of world
+  [Symbol.iterator](): IterableIterator<Entity> {
     return this.#entities.values();
   }
 
-  *ofKind(kind) {
+  *ofKind(kind: string): IterableIterator<Entity> {
     for (const entity of this.#entities.values()) {
-      // values() to dont get pairs [id, value], but only values
       if (entity.kind === kind) {
-        yield entity; // return current entity
+        yield entity;
       }
     }
   }
 
-  findNearestTarget(entity, kind) {
-    let nearest = null;
+  findNearestTarget(entity: Entity, kind: string): Entity | null {
+    let nearest: Entity | null = null;
     let minDistance = Math.sqrt(this.width ** 2 + this.height ** 2);
 
     for (const current of this.ofKind(kind)) {
@@ -118,22 +124,22 @@ class World extends EventTarget {
     return nearest;
   }
 
-  step(dt, inputs) {
+  step(dt: number, inputs?: unknown): void {
     let localBlibliesCount = 0;
     let localPickupItemsCount = 0;
 
-    for (const entity of this.ofKind('bliblie')) {
+    for (const _entity of this.ofKind('bliblie')) {
       localBlibliesCount++;
     }
 
-    for (const entity of this.ofKind('pickup')) {
+    for (const _entity of this.ofKind('pickup')) {
       localPickupItemsCount++;
     }
 
     if (localBlibliesCount > 0) {
       this.bliblieScreamTimer -= dt * (1 + 0.7 * localBlibliesCount);
 
-      if (this.bliblieScreamTimer <= 0 && localBlibliesCount > 0) {
+      if (this.bliblieScreamTimer <= 0) {
         this.dispatchEvent(
           new CustomEvent('environment', { detail: { type: 'bliblie' } })
         );
@@ -142,7 +148,6 @@ class World extends EventTarget {
     }
 
     if (localBlibliesCount < blibliesCount) {
-      // if bliblie < 5 we spawn new
       const difference = blibliesCount - localBlibliesCount;
 
       for (let i = 0; i < difference; i++) {
@@ -155,7 +160,7 @@ class World extends EventTarget {
         );
 
         const bliblieRadius =
-          Math.sqrt(bliblieWidth ** 2 + bliblieHeight ** 2) / 2; // rectangle diag formula
+          Math.sqrt(bliblieWidth ** 2 + bliblieHeight ** 2) / 2;
         const newPosition = this.#getRandomFreeSpot(bliblieRadius);
 
         const newBliBlie = new BliBlie(
@@ -172,14 +177,13 @@ class World extends EventTarget {
       const difference = pickupItemsCount - localPickupItemsCount;
 
       for (let i = 0; i < difference; i++) {
-        const itemType =
-          this.#pickupItems[
-            Math.floor(this.random() * this.#pickupItems.length)
-          ];
+        const itemType = this.#pickupItems[
+          Math.floor(this.random() * this.#pickupItems.length)
+        ];
 
-        if (itemType == 'shield') {
+        if (itemType === 'shield') {
           const shieldRadius =
-            Math.sqrt(shieldWidth ** 2 + shieldHeight ** 2) / 2; // rectangle diag formula
+            Math.sqrt(shieldWidth ** 2 + shieldHeight ** 2) / 2;
           const newPosition = this.#getRandomFreeSpot(shieldRadius);
 
           const newShield = new Pickup(newPosition, shieldRadius, itemType);
@@ -189,37 +193,39 @@ class World extends EventTarget {
     }
 
     for (const entity of this.ofKind('mainShip')) {
-      if (entity.fireRequested) {
-        entity.fireRequested = false;
+      const ship = entity as Ship;
+      if (ship.fireRequested) {
+        ship.fireRequested = false;
 
-        const launch = getMiniRocketLaunchState(entity);
+        const launch = getMiniRocketLaunchState(ship);
         const miniRocket = new MiniRocket(
           launch.pos,
           launch.vel,
           launch.radius,
           launch.angle,
-          entity,
-          entity.fireSequence
+          ship,
+          ship.fireSequence
         );
-        entity.fireSequence = null;
+        ship.fireSequence = null;
         miniRocket.behaviors.push(applyHoming);
         this.spawn(miniRocket);
 
-        this.dispatchEvent(new CustomEvent('shoot')); // for audio
+        this.dispatchEvent(new CustomEvent('shoot'));
       }
     }
 
     for (const entity of this) {
-      const context = {}; // sup data for obj behavior
-
-      if (entity.kind === 'miniRocket') {
-        context.target = this.findNearestTarget(entity, 'bliblie');
-        context.worldEntities = this;
-      }
+      const context: BehaviorContext =
+        entity.kind === 'miniRocket'
+          ? {
+              target: this.findNearestTarget(entity, 'bliblie'),
+              worldEntities: this,
+            }
+          : {};
 
       entity.update(dt, context);
 
-      if (entity.kind == 'bliblie') {
+      if (entity.kind === 'bliblie') {
         bounce(entity, this.width, this.height);
       }
     }
@@ -230,26 +236,28 @@ class World extends EventTarget {
       if (!a.alive || !b.alive) continue;
 
       if (
-        (a.kind == 'bliblie' && b.kind == 'bliblie') ||
-        (a.kind == 'mainShip' && b.kind == 'mainShip')
+        (a.kind === 'bliblie' && b.kind === 'bliblie') ||
+        (a.kind === 'mainShip' && b.kind === 'mainShip')
       ) {
         a.vel = new Vector2(-a.vel.x, -a.vel.y);
         b.vel = new Vector2(-b.vel.x, -b.vel.y);
       }
 
       if (
-        (a.kind == 'miniRocket' && b.kind == 'bliblie') ||
-        (a.kind == 'bliblie' && b.kind == 'miniRocket')
+        (a.kind === 'miniRocket' && b.kind === 'bliblie') ||
+        (a.kind === 'bliblie' && b.kind === 'miniRocket')
       ) {
-        const rocket = a.kind == 'miniRocket' ? a : b;
-        const bliblie = a.kind == 'bliblie' ? a : b;
+        const rocket = (a.kind === 'miniRocket' ? a : b) as MiniRocket;
+        const bliblie = a.kind === 'bliblie' ? a : b;
 
         rocket.alive = false;
         bliblie.alive = false;
-        rocket.owner.score += 1;
+        
+        const ownerShip = rocket.owner as Ship;
+        ownerShip.score += 1;
 
-        const currentKills = this.#shipKillCount.get(rocket.owner) + 1;
-        this.#shipKillCount.set(rocket.owner, currentKills);
+        const currentKills = (this.#shipKillCount.get(ownerShip) ?? 0) + 1;
+        this.#shipKillCount.set(ownerShip, currentKills);
 
         this.dispatchEvent(
           new CustomEvent('hit', { detail: { type: 'bliblie' } })
@@ -262,11 +270,11 @@ class World extends EventTarget {
       }
 
       if (
-        (a.kind == 'mainShip' && b.kind == 'bliblie') ||
-        (a.kind == 'bliblie' && b.kind == 'mainShip')
+        (a.kind === 'mainShip' && b.kind === 'bliblie') ||
+        (a.kind === 'bliblie' && b.kind === 'mainShip')
       ) {
-        const ship = a.kind == 'mainShip' ? a : b;
-        const bliblie = a.kind == 'bliblie' ? a : b;
+        const ship = (a.kind === 'mainShip' ? a : b) as Ship;
+        const bliblie = a.kind === 'bliblie' ? a : b;
 
         if (ship.hit(damageFromObjects)) {
           this.spawn(new Explosion(ship.pos, this.random));
@@ -279,15 +287,16 @@ class World extends EventTarget {
       }
 
       if (
-        (a.kind == 'mainShip' && b.kind == 'miniRocket') ||
-        (a.kind == 'miniRocket' && b.kind == 'mainShip')
+        (a.kind === 'mainShip' && b.kind === 'miniRocket') ||
+        (a.kind === 'miniRocket' && b.kind === 'mainShip')
       ) {
-        const ship = a.kind == 'mainShip' ? a : b;
-        const rocket = a.kind == 'miniRocket' ? a : b;
+        const ship = (a.kind === 'mainShip' ? a : b) as Ship;
+        const rocket = (a.kind === 'miniRocket' ? a : b) as MiniRocket;
 
-        if (rocket.owner != ship && ship.hit(damageFromMiniRocket)) {
+        if (rocket.owner !== ship && ship.hit(damageFromMiniRocket)) {
           this.spawn(new Explosion(ship.pos, this.random));
-          this.#shipKillCount.set(rocket.owner, 0);
+          const ownerShip = rocket.owner as Ship;
+          this.#shipKillCount.set(ownerShip, 0);
           this.dispatchEvent(new CustomEvent('exploded'));
         }
 
@@ -295,13 +304,13 @@ class World extends EventTarget {
       }
 
       if (
-        (a.kind == 'mainShip' && b.kind == 'pickup') ||
-        (a.kind == 'pickup' && b.kind == 'mainShip')
+        (a.kind === 'mainShip' && b.kind === 'pickup') ||
+        (a.kind === 'pickup' && b.kind === 'mainShip')
       ) {
-        const ship = a.kind == 'mainShip' ? a : b;
-        const pickup = a.kind == 'pickup' ? a : b;
+        const ship = (a.kind === 'mainShip' ? a : b) as Ship;
+        const pickup = (a.kind === 'pickup' ? a : b) as Pickup;
 
-        if (pickup.effect == 'shield') {
+        if (pickup.effect === 'shield') {
           ship.hasShield = true;
         }
 
@@ -311,10 +320,10 @@ class World extends EventTarget {
 
     for (const entity of this) {
       if (!entity.alive) {
-        if (entity.kind == 'mainShip') {
-          // ship respawns
-          if (entity.updateRespawn(dt)) {
-            entity.pos = this.#getRandomFreeSpot(entity.radius);
+        if (entity.kind === 'mainShip') {
+          const ship = entity as Ship;
+          if (ship.updateRespawn(dt)) {
+            ship.pos = this.#getRandomFreeSpot(ship.radius);
           }
         } else {
           this.#entities.delete(entity.id);
@@ -323,5 +332,3 @@ class World extends EventTarget {
     }
   }
 }
-
-export { World };

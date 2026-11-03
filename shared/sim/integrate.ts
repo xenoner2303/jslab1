@@ -1,3 +1,4 @@
+import { Vector2 } from "./vector.ts";
 import {
   angleSpeed,
   dragSpeed,
@@ -5,9 +6,32 @@ import {
   maxThrust,
   thrustDecrement,
   thrustIncrement,
-} from '../config/settings.js';
+} from '../config/settings.ts';
 
-export function integrateShip(state, input, dt) {
+export type ShipState = {
+  readonly angle: number;
+  readonly thrust: number;
+  readonly pos: Vector2;
+  readonly vel: Vector2;
+};
+
+export type ShipInput = {
+  readonly turn: number;
+  readonly thrust: number;
+};
+
+export type IntegratedShipResult = {
+  readonly pos: Vector2;
+  readonly vel: Vector2;
+  readonly angle: number;
+  readonly thrust: number;
+};
+
+export function integrateShip(
+  state: ShipState, 
+  input: ShipInput, 
+  dt: number
+): IntegratedShipResult {
   let angle = state.angle;
   if (input.turn < 0) {
     angle -= ((angleSpeed * Math.PI) / 180) * dt;
@@ -50,11 +74,11 @@ export function integrateShip(state, input, dt) {
   }
 
   return {
-    pos: {
-      x: state.pos.x + vx * dt,
-      y: state.pos.y + vy * dt,
-    },
-    vel: { x: vx, y: vy },
+    pos: new Vector2(
+      state.pos.x + vx * dt,
+      state.pos.y + vy * dt
+    ),
+    vel: new Vector2(vx, vy),
     angle,
     thrust,
   };

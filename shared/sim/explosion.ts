@@ -1,17 +1,25 @@
-import { Entity } from './entity.js';
-import { Vector2 } from './vector.js';
+import { Entity } from './entity.ts';
+import type { BehaviorContext } from './entity.ts';
+import { Vector2 } from './vector.ts';
 import {
   explosionTtl,
   explosionParticleCount,
   explosionParticleMinSize,
   explosionParticleMaxSize,
   explosionParticleMaxSpeed,
-} from '../config/settings.js';
+} from '../config/settings.ts';
 
-class Explosion extends Entity {
-  #ttl = explosionTtl;
+export type Particle = {
+  pos: Vector2;
+  vel: Vector2;
+  radius: number;
+};
 
-  constructor(pos, random) {
+export class Explosion extends Entity {
+  #ttl: number = explosionTtl;
+  public particles: Particle[];
+
+  constructor(pos: Vector2, random: () => number) {
     super(pos, new Vector2(0, 0), 0, true, 0, 'explosion');
 
     this.particles = [];
@@ -25,7 +33,7 @@ class Explosion extends Entity {
           explosionParticleMinSize) /
         2;
 
-      const newParticle = {
+      const newParticle: Particle = {
         pos: new Vector2(0, 0),
         vel: Vector2.fromAngle(angle).scale(speed),
         radius,
@@ -34,7 +42,8 @@ class Explosion extends Entity {
     }
   }
 
-  update(dt) {
+  update(dt: number, context: BehaviorContext = {}): void {
+    super.update(dt, context);
     this.#ttl -= dt;
 
     for (const particle of this.particles) {
@@ -46,5 +55,3 @@ class Explosion extends Entity {
     }
   }
 }
-
-export { Explosion };

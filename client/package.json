@@ -9,6 +9,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "start": "node server/src/index.js",
+    "typecheck": "tsc --noEmit -p .",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
@@ -25,6 +26,7 @@
   "homepage": "https://github.com/xenoner2303/jslab1#readme",
   "devDependencies": {
     "prettier": "^3.9.9",
-    "vite": "^8.3.1"
+    "vite": "^8.3.1",
+    "shared": "file:../shared"
   }
 }

@@ -1,1 +1,1 @@
-export { getAngleDelta } from "../../shared/sim/math.js";
+export { getAngleDelta } from "../../shared/sim/math.ts";
