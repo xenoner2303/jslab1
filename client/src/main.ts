@@ -4,6 +4,7 @@ import { Vector2 } from '../../shared/sim/vector.ts';
 import { integrateShip } from '../../shared/sim/integrate.ts';
 import { wrap } from '../../shared/sim/arena.ts';
 import { createInputMessage } from '../../shared/protocol/messages.ts';
+import { measure } from './performance.ts';
 import type {
   ClientInputMessage,
   EntitySnapshot,
@@ -428,7 +429,7 @@ function startGame(
     };
   }
 
-  function simulate(): void {
+  function simulateWork(): void {
     if (input.isJustPressed('BracketLeft')) {
       interpolationDelayMs = Math.max(
         0,
@@ -499,7 +500,7 @@ function startGame(
     input.clearJustPressed();
   }
 
-  function render(_alpha: number, stats: LoopStats): void {
+  function renderWork(_alpha: number, stats: LoopStats): void {
     const ctx = canvasConfig.ctx;
     const now = performance.now();
     const correctionOffset = getCorrectionOffset(now);
@@ -607,6 +608,14 @@ function startGame(
     if (interpolationDelayHud) {
       interpolationDelayHud.textContent = `Interpolation delay: ${interpolationDelayMs.toFixed(0)} ms ([ / ] to adjust)`;
     }
+  }
+
+  function simulate(): void {
+    measure('simulate', simulateWork);
+  }
+
+  function render(alpha: number, stats: LoopStats): void {
+    measure('render', () => renderWork(alpha, stats));
   }
 
   const loop = createLoop({ step, simulate, render });
