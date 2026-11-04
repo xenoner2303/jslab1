@@ -8,6 +8,7 @@ import {
 } from "../../shared/protocol.ts";
 import { getCodec } from "../../shared/codec/index.ts";
 import { config } from "./config.ts";
+import { metrics } from "./metrics.ts";
 import { startHeartbeat } from "./heartbeat.ts";
 import {
   consumeMessageToken,
@@ -97,13 +98,45 @@ export function setupWebSocket(
 ): WebSocketServer {
   const jsonCodec = getCodec("json");
   const binaryCodec = getCodec("binary");
+
+  const ipConnectionCounts = new Map<string, number>();
+
   const wss = new WebSocketServer({
     server: httpServer,
     maxPayload: config.limits.maxPayloadBytes,
+    verifyClient: (info, callback) => {
+      const origin = info.req.headers.origin;
+      
+      if (config.allowedOrigins && config.allowedOrigins.length > 0) {
+        if (!origin || !config.allowedOrigins.includes(origin)) {
+          console.warn(`Blocked WebSocket connection from unauthorized origin: ${origin}`);
+          metrics.recordRejection("unauthorized_origin");
+          callback(false, 403, "Forbidden Origin");
+          return;
+        }
+      }
+
+      const clientIp = info.req.socket.remoteAddress ?? "unknown";
+      const currentCount = ipConnectionCounts.get(clientIp) ?? 0;
+      const maxPerIp = config.limits.maxConnectionsPerIp ?? 10;
+
+      if (currentCount >= maxPerIp) {
+        console.warn(`Blocked WebSocket connection: IP ${clientIp} exceeded limit (${maxPerIp})`);
+        metrics.recordRejection("ip_limit_exceeded");
+        callback(false, 429, "Too Many Connections from this IP");
+        return;
+      }
+
+      callback(true);
+    },
   });
+
   const clients = new Set<ClientSocket>();
 
   wss.on("connection", (socket, req) => {
+    const clientIp = req.socket.remoteAddress ?? "unknown";
+    ipConnectionCounts.set(clientIp, (ipConnectionCounts.get(clientIp) ?? 0) + 1);
+
     socket.on("error", (error) => {
       console.error("Socket error encountered:", error);
     });
@@ -131,11 +164,20 @@ export function setupWebSocket(
     const joinTimeout = setTimeout(() => {
       if (!client.data.room) {
         console.log("Connection closed: Join timeout exceeded (5s)");
+        metrics.recordRejection("join_timeout");
         client.close(4001, "Join timeout");
       }
     }, 5000);
 
     client.on("message", (data, isBinary) => {
+      const incomingBytes = Array.isArray(data)
+        ? data.reduce((sum, chunk) => sum + chunk.byteLength, 0)
+        : data instanceof ArrayBuffer
+          ? data.byteLength
+          : typeof data === "string"
+            ? Buffer.byteLength(data)
+            : data.byteLength;
+      metrics.recordMessageIn(incomingBytes);
       const alreadyLimited = client.rateLimit.exceeded;
       if (
         !consumeMessageToken(
@@ -149,6 +191,7 @@ export function setupWebSocket(
           console.warn(
             "Connection closed: WebSocket message rate limit exceeded",
           );
+          metrics.recordRejection("rate_limit_exceeded");
           client.close(4008, "Message rate limit exceeded");
         }
         return;
@@ -159,6 +202,7 @@ export function setupWebSocket(
       if (isBinary) {
         if (codec !== "binary") {
           console.warn("Validation failed: binary codec was not enabled");
+          metrics.recordRejection("binary_not_enabled");
           client.close(4002, "Binary codec not enabled");
           return;
         }
@@ -170,6 +214,7 @@ export function setupWebSocket(
             "Validation failed: invalid binary message:",
             getErrorMessage(error),
           );
+          metrics.recordRejection("invalid_binary");
           client.close(4002, "Invalid binary message");
           return;
         }
@@ -187,6 +232,7 @@ export function setupWebSocket(
             "Validation failed: invalid JSON message:",
             getErrorMessage(error),
           );
+          metrics.recordRejection("invalid_json");
           client.close(4002, "Invalid JSON message");
           return;
         }
@@ -195,6 +241,7 @@ export function setupWebSocket(
       const validation = parseClientMessage(rawMessage);
       if (!validation.success) {
         console.warn("Validation failed:", validation.error);
+        metrics.recordRejection("invalid_message_schema");
         client.close(4002, "Invalid message schema");
         return;
       }
@@ -204,6 +251,7 @@ export function setupWebSocket(
         console.warn(
           "Validation failed: binary input required by selected codec",
         );
+        metrics.recordRejection("binary_input_required");
         client.close(4002, "Binary input required");
         return;
       }
@@ -213,13 +261,15 @@ export function setupWebSocket(
         if (client.data.room) {
           const player = client.data.player;
           if (!player) {
-            client.close(4003, "Not joined to any room");
+            metrics.recordRejection("not_in_room");
+        client.close(4003, "Not joined to any room");
             return;
           }
           if (client.data.room.id !== roomId) {
             console.warn(
               "Validation failed: socket attempted to join multiple rooms",
             );
+            metrics.recordRejection("already_joined");
             client.close(4002, "Already joined to a room");
             return;
           }
@@ -237,6 +287,7 @@ export function setupWebSocket(
         const room = roomManager.getRoom(roomId);
         if (!room) {
           console.warn(`Join rejected: room '${roomId}' does not exist`);
+          metrics.recordRejection("room_not_found");
           client.close(4004, "Room not found");
           return;
         }
@@ -260,6 +311,7 @@ export function setupWebSocket(
             `Join rejected for room '${roomId}':`,
             getErrorMessage(error),
           );
+          metrics.recordRejection("room_full");
           client.close(4005, "Room is full");
           return;
         }
@@ -311,6 +363,13 @@ export function setupWebSocket(
       }
       networkSimulation.clear();
       clients.delete(client);
+
+      const currentCount = ipConnectionCounts.get(clientIp) ?? 1;
+      if (currentCount <= 1) {
+        ipConnectionCounts.delete(clientIp);
+      } else {
+        ipConnectionCounts.set(clientIp, currentCount - 1);
+      }
     });
   });
 

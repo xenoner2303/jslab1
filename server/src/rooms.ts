@@ -3,6 +3,7 @@ import type { WebSocket } from "ws";
 import { MatchLog } from "./log/matchlog.ts";
 import { config } from "./config.ts";
 import { Match } from "./match.ts";
+import { metrics, calculatePercentile } from "./metrics.ts";
 import { getCodec } from "../../shared/codec/index.ts";
 import type { EntitySnapshot, ServerMessage } from "../../shared/protocol.ts";
 
@@ -156,7 +157,10 @@ export class Room extends EventEmitter<RoomEvents> {
           ? getCodec("binary").encode(data)
           : getCodec("json").encode(data);
       const send = () => {
-        if (socket.readyState === 1) socket.send(payload);
+        if (socket.readyState === 1) {
+          socket.send(payload);
+          metrics.recordMessageOut(typeof payload === "string" ? Buffer.byteLength(payload) : payload.byteLength);
+        }
       };
       if (socket.data?.networkSimulation) {
         socket.data.networkSimulation.schedule("outgoing", send);
@@ -229,10 +233,25 @@ export class RoomManager {
   }
 
   getStats(): {
+    totalRooms: number;
+    totalPlayers: number;
+    tickTimeP99Ms: number;
     rooms: ({ roomId: string } & ReturnType<Match["getStats"]>)[];
   } {
+    const rooms = [...this.rooms.values()];
+    const totalPlayers = rooms.reduce(
+      (acc, room) => acc + room.match.players.size,
+      0,
+    );
+
+    const allSamples = rooms.flatMap((room) => room.match.recentTickDurations);
+    const tickTimeP99Ms = Number(calculatePercentile(allSamples, 0.99).toFixed(3));
+
     return {
-      rooms: [...this.rooms.values()].map((room) => ({
+      totalRooms: rooms.length,
+      totalPlayers,
+      tickTimeP99Ms,
+      rooms: rooms.map((room) => ({
         roomId: room.id,
         ...room.match.getStats(),
       })),
