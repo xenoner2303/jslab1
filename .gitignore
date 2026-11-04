@@ -1,3 +1,6 @@
 node_modules/
 *.ndjson
-coverage/
+coverage/client/dist/
+logs/
+test-results/
+playwright-report/

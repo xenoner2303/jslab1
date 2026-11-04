@@ -6,7 +6,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit -p .",
     "start": "node --env-file=.env src/index.ts",
-    "dev": "node --watch --env-file=.env src/index.ts"
+    "dev": "node --watch --env-file=.env src/index.ts",
+    "load-test": "node --env-file=.env scripts/load-test.ts"
   },
   "dependencies": {
     "shared": "file:../shared",

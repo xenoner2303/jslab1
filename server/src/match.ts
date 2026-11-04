@@ -5,7 +5,6 @@ import {
   TickSchema,
   type EntitySnapshot,
   type Seq,
-  type Tick,
 } from "../../shared/protocol.ts";
 import { createSnapshotMessage } from "../../shared/protocol/messages.ts";
 import {
@@ -49,6 +48,8 @@ type PlayerMatchState = {
   readonly queuedInputs: PlayerInputMessage[];
   lastReceivedSeq: number;
   lastProcessedSeq: Seq;
+  isBot: boolean;
+  fireCooldown: number;
 };
 
 class PlayerInput {
@@ -99,6 +100,7 @@ export class Match {
   totalTicks = 0;
   #timer: ReturnType<typeof setTimeout> | null = null;
   #nextTickAt = 0;
+  #nextBotId = 1;
 
   constructor(room: Room) {
     this.room = room;
@@ -132,10 +134,21 @@ export class Match {
       queuedInputs: [],
       lastReceivedSeq: 0,
       lastProcessedSeq: SeqSchema.parse(0),
+      isBot: false,
+      fireCooldown: 0,
     });
 
     this.start();
     return initialState;
+  }
+
+  addBot(name?: string): EntitySnapshot {
+    const id = `bot-${this.room.id}-${this.#nextBotId++}`;
+    const botName = name ?? `Bot ${this.#nextBotId - 1}`;
+    const state = this.addPlayer({ id, name: botName });
+    const botState = this.players.get(id);
+    if (botState) botState.isBot = true;
+    return state;
   }
 
   removePlayer(playerId: string): void {
@@ -199,6 +212,7 @@ export class Match {
     this.lastTickJitterMs = tickStartedAt - this.#nextTickAt;
 
     for (const [playerId, state] of this.players) {
+      if (state.isBot) this.#updateBotInput(state, 1 / simulationTickRate);
       const input = state.queuedInputs.shift();
       if (input) {
         state.input.apply(input);
@@ -243,6 +257,53 @@ export class Match {
     this.room.broadcast(snapshot);
     this.#nextTickAt += TICK_INTERVAL_MS;
     this.#scheduleTick();
+  }
+
+  #updateBotInput(state: PlayerMatchState, dt: number): void {
+    const targets = [...this.players.values()].filter(
+      (candidate) => candidate !== state && candidate.ship.alive,
+    );
+    if (targets.length === 0) {
+      state.input.current = { thrust: 0, turn: 0 };
+      return;
+    }
+
+    let target = targets[0];
+    if (!target) return;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+    for (const candidate of targets) {
+      const dx = candidate.ship.pos.x - state.ship.pos.x;
+      const dy = candidate.ship.pos.y - state.ship.pos.y;
+      const distance = dx * dx + dy * dy;
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        target = candidate;
+      }
+    }
+
+    const dx = target.ship.pos.x - state.ship.pos.x;
+    const dy = target.ship.pos.y - state.ship.pos.y;
+    const desiredAngle = Math.atan2(dy, dx);
+    let angleDifference = desiredAngle - state.ship.angle;
+    while (angleDifference > Math.PI) angleDifference -= Math.PI * 2;
+    while (angleDifference < -Math.PI) angleDifference += Math.PI * 2;
+
+    const turn: -1 | 0 | 1 =
+      Math.abs(angleDifference) < 0.12 ? 0 : angleDifference > 0 ? 1 : -1;
+    const distance = Math.sqrt(nearestDistance);
+    // Keep some distance instead of flying directly into the target.
+    const thrust: -1 | 0 | 1 = distance > 180 ? 1 : distance < 110 ? -1 : 0;
+    state.input.current = { thrust, turn };
+
+    state.fireCooldown -= dt;
+    if (
+      distance < 650 &&
+      Math.abs(angleDifference) < 0.2 &&
+      state.fireCooldown <= 0
+    ) {
+      state.input.firePending = true;
+      state.fireCooldown = 0.8;
+    }
   }
 
   #serializeEntity(entity: Entity, playerId: string | null): EntitySnapshot {

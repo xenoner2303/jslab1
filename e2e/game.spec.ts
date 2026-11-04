@@ -180,8 +180,6 @@ test("two browsers join one room, see movement, and exchange chat", async ({
         )
         .toBe(true);
       
-      await pageA.waitForTimeout(400);
-
       await expect
         .poll(
           () => {
@@ -194,11 +192,11 @@ test("two browsers join one room, see movement, and exchange chat", async ({
               : 0;
           },
           {
-            timeout: 5_000,
+            timeout: 500,
             message: `PlayerA did not move. Sent inputs: ${JSON.stringify(framesA.sentInputs.slice(-5))}; acknowledgements: ${JSON.stringify(framesB.acknowledgements.slice(-5))}; snapshots: ${JSON.stringify(framesB.snapshots.slice(-3))}`,
           },
         )
-        .toBeGreaterThan(0.5);
+        .toBeGreaterThan(0.2);
     } finally {
       await pageA.keyboard.up("w");
     }

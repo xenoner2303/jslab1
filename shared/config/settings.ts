@@ -31,8 +31,8 @@ export const explosionColors: readonly [string, string] = ['#ff4500', '#ffee55']
 export const simulationTickRate = 30;
 export const step = 1 / simulationTickRate;
 export const gridSize = 50;
-export const arenaWidth = 1200;
-export const arenaHeight = 800;
+export const arenaWidth = 1800;
+export const arenaHeight = 1200;
 
 // miniRockets
 export const rocketTtl = 10; // in seconds

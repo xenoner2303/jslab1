@@ -4,6 +4,8 @@ export default defineConfig({
   test: {
     include: [
       "shared/**/*.test.ts",
+      "client/**/*.test.ts",
+      "server/**/*.test.ts",
     ],
     coverage: {
       provider: "v8",

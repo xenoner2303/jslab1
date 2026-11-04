@@ -34,7 +34,7 @@ export function applyHoming(
 
   for (let i = 0; i < linecount; i++) {
     const offset = (i - 1) * entity.radius;
-    let startPos = entity.pos.add(side.scale(offset));
+    const startPos = entity.pos.add(side.scale(offset));
 
     for (const current of worldEntities) {
       if (current.id === entity.id || current.id === target.id) {

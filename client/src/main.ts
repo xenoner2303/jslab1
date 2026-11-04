@@ -24,6 +24,10 @@ import {
   getInterpolatedEntities,
   type SnapshotFrame,
 } from './interpolation.ts';
+import {
+  reconcilePredictedShip,
+  type PredictedShip,
+} from './reconciliation.ts';
 import { loadAll, type LoadedAssets } from './loader.ts';
 import {
   drawBarrierShield,
@@ -35,14 +39,6 @@ import {
   drawShip,
 } from './render/draw.ts';
 import { configureCanvas, type CanvasConfig } from './render/canvas.ts';
-
-type PredictedShip = Omit<
-  Extract<EntitySnapshot, { kind: 'mainShip' }>,
-  'pos' | 'vel'
-> & {
-  pos: Vector2;
-  vel: Vector2;
-};
 
 type PredictedRocket = Pick<
   Extract<EntitySnapshot, { kind: 'miniRocket' }>,
@@ -76,6 +72,43 @@ function requireElement<T extends HTMLElement>(
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function getResponseMessage(payload: unknown): string | undefined {
+  if (typeof payload !== 'object' || payload === null) return undefined;
+  if ('message' in payload && typeof payload.message === 'string') {
+    return payload.message;
+  }
+  if ('error' in payload && typeof payload.error === 'string') {
+    return payload.error;
+  }
+  return undefined;
+}
+
+async function addBots(roomId: string, count: number): Promise<number> {
+  const response = await fetch(`/api/rooms/${roomId}/bots`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ count }),
+  });
+
+  if (!response.ok) {
+    const errorData: unknown = await response.json().catch(() => null);
+    throw new Error(
+      getResponseMessage(errorData) ?? `Помилка сервера: ${response.status}`
+    );
+  }
+
+  const data: unknown = await response.json();
+  if (
+    typeof data !== 'object' ||
+    data === null ||
+    !('bots' in data) ||
+    !Array.isArray(data.bots)
+  ) {
+    throw new Error('Сервер повернув некоректну відповідь');
+  }
+  return data.bots.length;
 }
 
 function axisInput(value: number): -1 | 0 | 1 {
@@ -115,8 +148,40 @@ async function initGame(joinData: LobbyJoin): Promise<void> {
   const cancelButton = requireElement('cancel-btn', HTMLButtonElement);
   const chatPanel = requireElement('chat-panel', HTMLElement);
   const chatMessages = requireElement('chat-messages', HTMLElement);
+  const botsForm = requireElement('bots-form', HTMLFormElement);
+  const botsCountInput = requireElement('bots-count', HTMLInputElement);
+  const botsSubmitButton = botsForm.querySelector('button[type="submit"]');
+  if (!(botsSubmitButton instanceof HTMLButtonElement)) {
+    throw new Error('Required bot form submit button was not found');
+  }
+  const submitBotsButton = botsSubmitButton;
+  const botsStatus = requireElement('bots-status', HTMLElement);
   const chatForm = requireElement('chat-form', HTMLFormElement);
   const chatInput = requireElement('chat-input', HTMLInputElement);
+
+  botsForm.addEventListener('submit', (event) => {
+    void handleAddBots(event);
+  });
+
+  async function handleAddBots(event: SubmitEvent): Promise<void> {
+    event.preventDefault();
+    const count = Number(botsCountInput.value);
+    if (!Number.isInteger(count) || count < 1 || count > 8) {
+      botsStatus.textContent = 'Вкажіть ціле число від 1 до 8';
+      return;
+    }
+
+    submitBotsButton.disabled = true;
+    botsStatus.textContent = 'Додаємо ботів…';
+    try {
+      const addedCount = await addBots(joinData.room.id, count);
+      botsStatus.textContent = `Успішно додано ботів: ${addedCount}`;
+    } catch (error: unknown) {
+      botsStatus.textContent = `Не вдалося додати ботів: ${getErrorMessage(error)}`;
+    } finally {
+      submitBotsButton.disabled = false;
+    }
+  }
 
   joinData.connection.on('chat', (chat) => {
     const message = document.createElement('p');
@@ -130,7 +195,7 @@ async function initGame(joinData: LobbyJoin): Promise<void> {
 
   joinData.connection.on('maxreconnect', () => {
     const message = document.createElement('p');
-    message.textContent = 'З’єднання з сервером втрачено.';
+    message.textContent = 'З’єднання з сервером втрачено';
     chatMessages.appendChild(message);
     chatPanel.style.display = 'flex';
   });
@@ -220,6 +285,24 @@ function startGame(
   const predictedRockets = new Map<number, PredictedRocket>();
   const snapshotBuffer: SnapshotFrame[] = [];
   const interpolationDelayStepMs = 1000 / 30;
+  const particleWorker = new Worker(
+    new URL('./workers/particle.worker.ts', import.meta.url),
+    { type: 'module' }
+  );
+  const preparedExplosionParticles = new Map<
+    EntitySnapshot['id'],
+    Float32Array
+  >();
+  particleWorker.onmessage = (
+    event: MessageEvent<{ results: { id: number; buffer: ArrayBuffer }[] }>
+  ) => {
+    for (const result of event.data.results) {
+      preparedExplosionParticles.set(
+        result.id as EntitySnapshot['id'],
+        new Float32Array(result.buffer)
+      );
+    }
+  };
   const maxInterpolationDelayMs = 500;
   let interpolationDelayMs = interpolationDelayStepMs * 2;
   let entities: readonly EntitySnapshot[] = [];
@@ -240,6 +323,23 @@ function startGame(
 
   function handleSnapshot(snapshot: SnapshotMessage): void {
     entities = snapshot.entities;
+    const explosions = snapshot.entities.filter(
+      (entity) => entity.kind === 'explosion'
+    );
+    const activeExplosionIds = new Set<EntitySnapshot['id']>(
+      explosions.map((entity) => entity.id)
+    );
+    for (const id of preparedExplosionParticles.keys()) {
+      if (!activeExplosionIds.has(id)) preparedExplosionParticles.delete(id);
+    }
+    if (explosions.length > 0) {
+      particleWorker.postMessage({
+        explosions: explosions.map((explosion) => ({
+          id: explosion.id,
+          particles: explosion.particles,
+        })),
+      });
+    }
     const receivedAt = performance.now();
     snapshotBuffer.push({ receivedAt, entities: snapshot.entities });
     while (snapshotBuffer.length > 30) snapshotBuffer.shift();
@@ -278,17 +378,15 @@ function startGame(
           }
         : null;
 
-      predictedShip = {
-        ...authoritativeShip,
-        pos: new Vector2(authoritativeShip.pos.x, authoritativeShip.pos.y),
-        vel: new Vector2(authoritativeShip.vel.x, authoritativeShip.vel.y),
-      };
-
-      for (const sequence of pendingInputs.keys()) {
-        if (sequence <= acknowledgedSeq) pendingInputs.delete(sequence);
-      }
-      for (const message of pendingInputs.values()) {
-        applyPredictedInput(message);
+      const reconciled = reconcilePredictedShip(
+        authoritativeShip,
+        pendingInputs,
+        acknowledgedSeq
+      );
+      predictedShip = reconciled.predictedShip;
+      pendingInputs.clear();
+      for (const [sequence, message] of reconciled.pendingInputs) {
+        pendingInputs.set(sequence, message);
       }
 
       correctionMagnitude = previousState
@@ -330,7 +428,7 @@ function startGame(
     };
   }
 
-  function simulate(_dt: number): void {
+  function simulate(): void {
     if (input.isJustPressed('BracketLeft')) {
       interpolationDelayMs = Math.max(
         0,
@@ -444,8 +542,18 @@ function startGame(
       localShip?.kind === 'mainShip' ? localShip.score : 0,
       correctionMagnitude
     );
+    ctx.save();
+    ctx.setTransform(
+      window.devicePixelRatio,
+      0,
+      0,
+      window.devicePixelRatio,
+      0,
+      0
+    );
     ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
-    drawGrid(ctx, window.innerWidth, window.innerHeight);
+    ctx.restore();
+    drawGrid(ctx);
 
     for (const entity of renderEntities) {
       if (!entity.alive) continue;
@@ -482,7 +590,7 @@ function startGame(
           drawBliBlie(ctx, entity, assets.sprites.bliblie ?? null);
           break;
         case 'explosion':
-          drawExplosion(ctx, entity);
+          drawExplosion(ctx, entity, preparedExplosionParticles.get(entity.id));
           break;
         case 'pickup':
           if (entity.effect === 'shield') {
@@ -491,7 +599,7 @@ function startGame(
           break;
         default: {
           const exhaustiveCheck: never = entity;
-          throw new TypeError(`Unsupported entity: ${exhaustiveCheck}`);
+          throw new TypeError(`Unsupported entity: ${String(exhaustiveCheck)}`);
         }
       }
     }
@@ -502,5 +610,8 @@ function startGame(
   }
 
   const loop = createLoop({ step, simulate, render });
+  window.addEventListener('beforeunload', () => particleWorker.terminate(), {
+    once: true,
+  });
   loop.start();
 }
