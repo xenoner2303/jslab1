@@ -1,3 +1,5 @@
+import { arenaHeight, arenaWidth } from '../../../shared/config/settings.ts';
+
 export type CanvasConfig = {
   readonly ctx: CanvasRenderingContext2D;
   resizeCanvas(): void;
@@ -15,9 +17,23 @@ export function configureCanvas(target: Window): CanvasConfig {
 
   function resizeCanvas(): void {
     const dpr = target.devicePixelRatio;
-    canvas.width = target.innerWidth * dpr;
-    canvas.height = target.innerHeight * dpr;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const scale = Math.min(
+      1,
+      target.innerWidth / arenaWidth,
+      target.innerHeight / arenaHeight
+    );
+    const offsetX = (target.innerWidth - arenaWidth * scale) / 2;
+    const offsetY = (target.innerHeight - arenaHeight * scale) / 2;
+    canvas.width = Math.round(target.innerWidth * dpr);
+    canvas.height = Math.round(target.innerHeight * dpr);
+    ctx.setTransform(
+      dpr * scale,
+      0,
+      0,
+      dpr * scale,
+      dpr * offsetX,
+      dpr * offsetY
+    );
   }
 
   resizeCanvas();

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { consumeMessageToken, createTokenBucket } from "./rateLimit.ts";
+import { consumeMessageToken, createTokenBucket } from "../src/rateLimit.ts";
 
 describe("token-bucket rate limiter", () => {
   it("allows a burst and then rejects until tokens refill", () => {

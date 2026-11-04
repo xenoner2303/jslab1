@@ -1,0 +1,1 @@
+(function(){let e=self;e.onmessage=t=>{let n=t.data.explosions.map(e=>{let t=new Float32Array(e.particles.length*3);return e.particles.forEach((e,n)=>{let r=n*3;t[r]=e.pos.x,t[r+1]=e.pos.y,t[r+2]=e.radius}),{id:e.id,buffer:t.buffer}});e.postMessage({results:n},n.map(e=>e.buffer))}})();

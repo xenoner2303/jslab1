@@ -104,6 +104,7 @@ export function drawGrid(
   width: number = arenaWidth,
   height: number = arenaHeight
 ): void {
+  ctx.save();
   ctx.strokeStyle = gridColor;
   ctx.lineWidth = 1;
   for (let x = 0; x < width; x += gridSize) {
@@ -118,6 +119,15 @@ export function drawGrid(
     ctx.lineTo(width, y);
     ctx.stroke();
   }
+  ctx.strokeStyle = '#000000';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(
+    ctx.lineWidth / 2,
+    ctx.lineWidth / 2,
+    width - ctx.lineWidth,
+    height - ctx.lineWidth
+  );
+  ctx.restore();
 }
 
 export function drawBliBlie(
@@ -160,16 +170,37 @@ export function drawMiniRocket(
 
 export function drawExplosion(
   ctx: CanvasRenderingContext2D,
-  explosion: ExplosionSnapshot
+  explosion: ExplosionSnapshot,
+  preparedParticles?: Float32Array
 ): void {
   ctx.save();
   ctx.translate(explosion.pos.x, explosion.pos.y);
-  for (const [index, particle] of explosion.particles.entries()) {
-    const colorIndex = index % explosionColors.length;
-    ctx.fillStyle = explosionColors[colorIndex] ?? explosionColors[0];
-    ctx.beginPath();
-    ctx.arc(particle.pos.x, particle.pos.y, particle.radius, 0, Math.PI * 2);
-    ctx.fill();
+  if (preparedParticles) {
+    for (
+      let offset = 0, index = 0;
+      offset < preparedParticles.length;
+      offset += 3, index++
+    ) {
+      const colorIndex = index % explosionColors.length;
+      ctx.fillStyle = explosionColors[colorIndex] ?? explosionColors[0];
+      ctx.beginPath();
+      ctx.arc(
+        preparedParticles[offset] ?? 0,
+        preparedParticles[offset + 1] ?? 0,
+        preparedParticles[offset + 2] ?? 0,
+        0,
+        Math.PI * 2
+      );
+      ctx.fill();
+    }
+  } else {
+    for (const [index, particle] of explosion.particles.entries()) {
+      const colorIndex = index % explosionColors.length;
+      ctx.fillStyle = explosionColors[colorIndex] ?? explosionColors[0];
+      ctx.beginPath();
+      ctx.arc(particle.pos.x, particle.pos.y, particle.radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
   ctx.restore();
 }

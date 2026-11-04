@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createLoop } from './loop.ts';
+import { createLoop } from '../src/loop.ts';
 
 describe('createLoop accumulator', () => {
   afterEach(() => {

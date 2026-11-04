@@ -4,12 +4,15 @@ import { createInputMessage } from '../../shared/protocol/messages.ts';
 import { Vector2 } from '../../shared/sim/vector.ts';
 import { integrateShip } from '../../shared/sim/integrate.ts';
 import { wrap } from '../../shared/sim/arena.ts';
+import { z } from 'zod';
 import {
   arenaHeight,
   arenaWidth,
   step,
 } from '../../shared/config/settings.ts';
-import { reconcilePredictedShip } from './reconciliation.ts';
+import { reconcilePredictedShip } from '../src/reconciliation.ts';
+
+type MainShipSnapshot = Extract<z.infer<typeof EntitySnapshotSchema>, { kind: 'mainShip' }>;
 
 const ship = EntitySnapshotSchema.parse({
   id: 1,
@@ -26,7 +29,7 @@ const ship = EntitySnapshotSchema.parse({
   thrust: 0,
   score: 0,
   hasShield: false,
-});
+}) as MainShipSnapshot;
 
 describe('reconcilePredictedShip', () => {
   it('replays only unacknowledged inputs onto the snapshot', () => {
