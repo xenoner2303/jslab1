@@ -8,3 +8,8 @@
 * When server shutdown, it sends code 1001 with a shutdown message in chat.
 * Flooding 1,000 invalid frames/sec triggers immediate socket termination, logs the event, updates prometheus metrics, and has zero impact on other active rooms' tick performance.
 
+## M3 - Docker
+
+| Image | ID | Disk usage | Content size |
+|---|---|---:|---:|
+| `game-server:latest` | `7a179a2ff129` | 286 MB | 71.9 MB |

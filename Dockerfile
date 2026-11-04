@@ -23,9 +23,9 @@ COPY server/package*.json ./server/
 COPY shared/package*.json ./shared/
 RUN npm ci --omit=dev
 
-COPY --from=app-build /app/client/dist ./client/dist
-COPY server ./server
-COPY shared ./shared
+COPY --from=build /app/client/dist ./client/dist
+COPY --from=build /app/server ./server
+COPY --from=build /app/shared ./shared
 
 RUN mkdir -p logs && chown -R node:node /app
 
