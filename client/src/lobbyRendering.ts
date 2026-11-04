@@ -27,7 +27,7 @@ export function initLobbyRendering(lobby: Lobby): void {
   const newRoomMaxInput =
     document.querySelector<HTMLInputElement>('#new-room-max');
 
-  let selectedRoomId: string | null = null;
+  const selectedRoomId: string | null = null;
 
   if (
     !createRoomBtn ||
@@ -45,18 +45,25 @@ export function initLobbyRendering(lobby: Lobby): void {
   const playerNameInput = nameInput;
   const roomList = roomsContainer;
   const errorMessage = errorDiv;
+  const createRoomButton = createRoomBtn;
+  const roomNameInput = newRoomNameInput;
+  const roomMaxInput = newRoomMaxInput;
 
-  createRoomBtn.addEventListener('click', async () => {
-    const roomName = newRoomNameInput.value.trim() || 'Нова кімната';
-    const maxPlayers = Number(newRoomMaxInput.value);
+  createRoomButton.addEventListener('click', () => {
+    void createRoom();
+  });
+
+  async function createRoom(): Promise<void> {
+    const roomName = roomNameInput.value.trim() || 'Нова кімната';
+    const maxPlayers = Number(roomMaxInput.value);
     errorMessage.textContent = '';
 
     if (!Number.isInteger(maxPlayers) || maxPlayers < 1 || maxPlayers > 8) {
-      errorDiv.textContent = 'Кількість гравців має бути від 1 до 8';
+      errorMessage.textContent = 'Кількість гравців має бути від 1 до 8';
       return;
     }
 
-    createRoomBtn.disabled = true;
+    createRoomButton.disabled = true;
     try {
       const response = await fetch('/api/rooms', {
         method: 'POST',
@@ -69,15 +76,15 @@ export function initLobbyRendering(lobby: Lobby): void {
         throw new Error(message || 'Не вдалося створити кімнату');
       }
 
-      newRoomNameInput.value = '';
+      roomNameInput.value = '';
       await lobby.refresh();
     } catch (err: unknown) {
       errorMessage.textContent =
         err instanceof Error ? err.message : String(err);
     } finally {
-      createRoomBtn.disabled = false;
+      createRoomButton.disabled = false;
     }
-  });
+  }
 
   lobby.on('roomsupdated', ({ rooms }) => {
     renderRooms(rooms);
@@ -89,7 +96,7 @@ export function initLobbyRendering(lobby: Lobby): void {
   });
 
   refreshBtn.addEventListener('click', () => {
-    lobby.refresh();
+    void lobby.refresh();
   });
 
   function renderRooms(rooms: readonly Room[]): void {

@@ -22,6 +22,22 @@
 
     <section id="chat-panel" aria-label="Room chat">
       <h2>Чат кімнати</h2>
+      <form id="bots-form">
+        <label for="bots-count">Додати ботів</label>
+        <div id="bots-controls">
+          <input
+            id="bots-count"
+            type="number"
+            min="1"
+            max="8"
+            step="1"
+            value="1"
+            required
+          />
+          <button type="submit">Додати</button>
+        </div>
+        <p id="bots-status" role="status" aria-live="polite"></p>
+      </form>
       <div id="chat-messages" role="log" aria-live="polite"></div>
       <form id="chat-form">
         <label class="visually-hidden" for="chat-input">Повідомлення</label>

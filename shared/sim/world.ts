@@ -49,6 +49,10 @@ export class World extends EventTarget {
     this.bliblieScreamTimer = bliblieScreamTimer;
   }
 
+  clone(): World {
+    return new World(this.width, this.height, this.seed);
+  }
+
   #getRandomFreeSpot(radius: number): Vector2 {
     let potentialSpot = new Vector2(
       this.random() * this.width,
@@ -125,16 +129,8 @@ export class World extends EventTarget {
   }
 
   step(dt: number): void {
-    let localBlibliesCount = 0;
-    let localPickupItemsCount = 0;
-
-    for (const _entity of this.ofKind('bliblie')) {
-      localBlibliesCount++;
-    }
-
-    for (const _entity of this.ofKind('pickup')) {
-      localPickupItemsCount++;
-    }
+    const localBlibliesCount = Array.from(this.ofKind('bliblie')).length;
+    const localPickupItemsCount = Array.from(this.ofKind('pickup')).length;
 
     if (localBlibliesCount > 0) {
       this.bliblieScreamTimer -= dt * (1 + 0.7 * localBlibliesCount);
@@ -215,6 +211,10 @@ export class World extends EventTarget {
       }
     }
 
+    const previousPositions = new Map<object, Vector2>(
+      [...this].map((entity) => [entity, entity.pos])
+    );
+
     for (const entity of this) {
       const context: BehaviorContext =
         entity instanceof MiniRocket
@@ -231,7 +231,7 @@ export class World extends EventTarget {
       }
     }
 
-    const collisions = entitiesCollision([...this]);
+    const collisions = entitiesCollision([...this], previousPositions);
 
     for (const [a, b] of collisions) {
       if (!a.alive || !b.alive) continue;
@@ -249,7 +249,7 @@ export class World extends EventTarget {
       if (rocket && bliblie) {
         rocket.alive = false;
         bliblie.alive = false;
-        
+
         const ownerShip = rocket.owner;
         ownerShip.score += 1;
 

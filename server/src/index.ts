@@ -1,4 +1,5 @@
 import http, { type IncomingMessage, type ServerResponse } from "node:http";
+import { performance } from "node:perf_hooks";
 import { createReadStream } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -16,6 +17,7 @@ const PUBLIC_DIR = path.resolve(__dirname, "../../client/dist");
 
 await fs.mkdir(config.logDir, { recursive: true });
 const roomManager = new RoomManager(config.logDir);
+const eventLoopBaseline = performance.eventLoopUtilization();
 
 const MIME_TYPES: Readonly<Record<string, string>> = {
   ".html": "text/html; charset=UTF-8",
@@ -31,6 +33,8 @@ const MIME_TYPES: Readonly<Record<string, string>> = {
   ".mp3": "audio/mpeg",
   ".webp": "image/webp",
 };
+
+const addBotsSchema = z.object({ count: z.number().int().min(1).max(8) });
 
 const createRoomSchema = z.object({
   name: z.string().trim().min(1).max(50).optional(),
@@ -89,7 +93,7 @@ async function parseJsonBody(
   req: IncomingMessage,
   limitBytes = 1024,
 ): Promise<unknown> {
-  const chunks: Buffer[] = [];
+  const chunks: Uint8Array[] = [];
   let receivedBytes = 0;
 
   for await (const chunk of req) {
@@ -103,7 +107,11 @@ async function parseJsonBody(
 
   if (chunks.length === 0) return {};
   try {
-    return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+    return JSON.parse(
+      Buffer.concat(chunks.map((chunk) => Uint8Array.from(chunk))).toString(
+        "utf8",
+      ),
+    );
   } catch (error: unknown) {
     throw new HttpError(`Invalid JSON body: ${getErrorMessage(error)}`, 400);
   }
@@ -115,10 +123,15 @@ function getRequestUrl(req: IncomingMessage): URL {
 }
 
 const server = http.createServer(
-  async (
-    req: IncomingMessage,
-    res: ServerResponse<IncomingMessage>,
-  ): Promise<void> => {
+  (req: IncomingMessage, res: ServerResponse<IncomingMessage>): void => {
+    void handleRequest(req, res);
+  },
+);
+
+async function handleRequest(
+  req: IncomingMessage,
+  res: ServerResponse<IncomingMessage>,
+): Promise<void> {
     try {
       const { pathname } = getRequestUrl(req);
 
@@ -128,7 +141,12 @@ const server = http.createServer(
       }
 
       if (req.method === "GET" && pathname === "/api/stats") {
-        sendJson(res, 200, roomManager.getStats());
+        sendJson(res, 200, {
+          ...roomManager.getStats(),
+          rssBytes: process.memoryUsage().rss,
+          eventLoopUtilization:
+            performance.eventLoopUtilization(eventLoopBaseline).utilization,
+        });
         return;
       }
 
@@ -136,7 +154,7 @@ const server = http.createServer(
         const start = process.hrtime.bigint();
         const delayNanoseconds = 3_000_000_000n;
         while (process.hrtime.bigint() - start < delayNanoseconds) {
-          // This endpoint intentionally blocks the event loop for its duration.
+          // blocks the event loop for its duration
         }
 
         sendJson(res, 200, { blockedForMs: 3000 });
@@ -148,7 +166,7 @@ const server = http.createServer(
           id: room.id,
           name: room.name,
           maxPlayers: room.maxPlayers,
-          currentPlayers: room.players.size,
+          currentPlayers: room.match.players.size,
           arenaConfig: { width: arenaWidth, height: arenaHeight },
         }));
         sendJson(res, 200, { rooms: roomList });
@@ -206,6 +224,43 @@ const server = http.createServer(
           "Content-Disposition": `attachment; filename="${replayId}.ndjson"`,
         });
         await pipeline(createReadStream(replayPath), res);
+        return;
+      }
+
+      const botsMatch = pathname.match(/^\/api\/rooms\/([^/]+)\/bots$/);
+      if (req.method === "POST" && botsMatch) {
+        const roomId = botsMatch[1];
+        if (!roomId) throw new HttpError("Invalid room ID", 400);
+        const room = roomManager.getRoom(roomId);
+        if (!room) throw new HttpError("Room not found", 404);
+        if (
+          req.headers["content-type"]?.split(";")[0]?.trim().toLowerCase() !==
+          "application/json"
+        ) {
+          throw new HttpError("Content-Type must be application/json", 415);
+        }
+        const body = await parseJsonBody(req);
+        const parsed = addBotsSchema.safeParse(body);
+        if (!parsed.success) {
+          throw new HttpError(
+            parsed.error.issues[0]?.message ?? "Invalid bot request",
+            400,
+          );
+        }
+        const availableSlots = Math.max(
+          0,
+          room.maxPlayers - room.match.players.size,
+        );
+        if (parsed.data.count > availableSlots) {
+          throw new HttpError(
+            `Only ${availableSlots} player slots are available`,
+            409,
+          );
+        }
+        const bots = Array.from({ length: parsed.data.count }, () =>
+          room.match.addBot(),
+        );
+        sendJson(res, 201, { success: true, bots });
         return;
       }
 
@@ -303,8 +358,7 @@ const server = http.createServer(
         res.destroy(error instanceof Error ? error : new Error(String(error)));
       }
     }
-  },
-);
+}
 
 const webSocketServer = setupWebSocket(server, roomManager);
 

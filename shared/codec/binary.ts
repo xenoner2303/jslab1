@@ -26,8 +26,6 @@ import {
   type ClientInputMessage,
   type EntitySnapshot,
   type Seq,
-  type SnapshotMessage,
-  type Tick,
 } from "../protocol.ts";
 import { Vector2 } from "../sim/vector.ts";
 
@@ -301,7 +299,9 @@ function writeEntity(writer: BinaryWriter, entity: EntitySnapshot): void {
       break;
     case "pickup":
       if (entity.effect !== "shield") {
-        throw new TypeError(`Unsupported pickup effect: ${entity.effect}`);
+        throw new TypeError(
+          `Unsupported pickup effect: ${String(entity.effect)}`,
+        );
       }
       writer.writeUint8(1);
       break;
@@ -339,7 +339,6 @@ function readEntity(reader: BinaryReader): EntitySnapshot {
   const angle = reader.readInt16() / 1000;
   const radius = reader.readFloat32();
   
-  // Створюємо справжні інстанси Vector2 замість звичайних об'єктів
   const pos = new Vector2(x, y);
   const vel = new Vector2(velX, velY);
   const alive = aliveValue === 1;
@@ -440,7 +439,7 @@ function readEntity(reader: BinaryReader): EntitySnapshot {
     };
   } else {
     const _exhaustive: never = kind;
-    throw new TypeError(`Unknown entity kind: ${_exhaustive}`);
+    throw new TypeError(`Unknown entity kind: ${String(_exhaustive)}`);
   }
 }
 
@@ -554,9 +553,5 @@ export function decodeBinaryMessage(data: ArrayBuffer | ArrayBufferView): Binary
   }
 
   reader.finish();
-  const validation = BinaryMessageSchema.safeParse(message);
-  if (!validation.success) {
-    throw new TypeError(`Invalid binary message: ${validation.error.message}`);
-  }
   return message;
 }

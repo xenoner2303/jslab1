@@ -96,7 +96,7 @@ export class Room extends EventEmitter<RoomEvents> {
     socket: RoomSocket,
     player: Pick<Player, "id" | "name"> & Partial<Pick<Player, "state">>,
   ): Player {
-    if (this.players.size >= this.maxPlayers) {
+    if (this.match.players.size >= this.maxPlayers) {
       throw new Error("Room is full");
     }
 
@@ -167,11 +167,13 @@ export class Room extends EventEmitter<RoomEvents> {
   }
 
   broadcastRoster(): void {
-    const roster = Array.from(this.players.values()).map((player) => ({
-      id: player.id,
-      name: player.name,
-      state: player.state,
-    }));
+    const roster = Array.from(this.match.players.values()).map(
+      ({ player }) => ({
+        id: player.id,
+        name: player.name,
+        state: player.state as EntitySnapshot,
+      }),
+    );
     this.broadcast({ type: "roster", players: roster });
   }
 }
@@ -222,7 +224,7 @@ export class RoomManager {
     return Array.from(this.rooms.values()).map((room) => ({
       id: room.id,
       name: room.name,
-      playersCount: room.players.size,
+      playersCount: room.match.players.size,
     }));
   }
 
