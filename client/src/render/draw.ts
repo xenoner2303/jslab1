@@ -99,26 +99,35 @@ function drawBulletThrust(
   }
 }
 
-export function drawGrid(
+let gridCache: {
+  canvas: HTMLCanvasElement;
+  width: number;
+  height: number;
+} | null = null;
+
+function renderGrid(
   ctx: CanvasRenderingContext2D,
-  width: number = arenaWidth,
-  height: number = arenaHeight
+  width: number,
+  height: number
 ): void {
   ctx.save();
   ctx.strokeStyle = gridColor;
   ctx.lineWidth = 1;
+
   for (let x = 0; x < width; x += gridSize) {
     ctx.beginPath();
     ctx.moveTo(x, 0);
     ctx.lineTo(x, height);
     ctx.stroke();
   }
+
   for (let y = 0; y < height; y += gridSize) {
     ctx.beginPath();
     ctx.moveTo(0, y);
     ctx.lineTo(width, y);
     ctx.stroke();
   }
+
   ctx.strokeStyle = '#000000';
   ctx.lineWidth = 3;
   ctx.strokeRect(
@@ -127,7 +136,41 @@ export function drawGrid(
     width - ctx.lineWidth,
     height - ctx.lineWidth
   );
+
   ctx.restore();
+}
+
+export function drawGrid(
+  ctx: CanvasRenderingContext2D,
+  width: number = arenaWidth,
+  height: number = arenaHeight
+): void {
+  if (
+    !gridCache ||
+    gridCache.width !== width ||
+    gridCache.height !== height
+  ) {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+
+    const gridContext = canvas.getContext('2d');
+
+    if (!gridContext) {
+      renderGrid(ctx, width, height);
+      return;
+    }
+
+    renderGrid(gridContext, width, height);
+
+    gridCache = {
+      canvas,
+      width,
+      height,
+    };
+  }
+
+  ctx.drawImage(gridCache.canvas, 0, 0);
 }
 
 export function drawBliBlie(

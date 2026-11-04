@@ -1,4 +1,5 @@
 import { getCodec } from '../../shared/codec/index.ts';
+import { measure, measureAsync } from './performance.ts';
 import {
   parseServerMessage,
   type ClientMessage,
@@ -8,6 +9,10 @@ import {
   type SnapshotMessage,
 } from '../../shared/protocol.ts';
 import { Bus } from './bus.ts';
+
+const jsonCodec = getCodec('json');
+const binaryCodec = getCodec('binary');
+const textEncoder = new TextEncoder();
 
 export type GameEvents = {
   open: undefined;
@@ -96,25 +101,31 @@ export class GameConnection {
     data: string | ArrayBuffer | Blob
   ): Promise<void> {
     try {
-      const raw =
-        data instanceof ArrayBuffer
-          ? getCodec('binary').decode(data)
-          : data instanceof Blob
-            ? getCodec('binary').decode(await data.arrayBuffer())
-            : getCodec('json').decode(data);
-      this.#bytesIn +=
-        typeof data === 'string'
-          ? new TextEncoder().encode(data).byteLength
-          : data instanceof Blob
-            ? data.size
-            : data.byteLength;
+      const result = await measureAsync('decode', async () => {
+        const raw = await measureAsync('codecDecode', async () => {
+          return data instanceof ArrayBuffer
+            ? binaryCodec.decode(data)
+            : data instanceof Blob
+              ? binaryCodec.decode(await data.arrayBuffer())
+              : jsonCodec.decode(data);
+        });
 
-      const result = parseServerMessage(raw);
+        this.#bytesIn +=
+          typeof data === 'string'
+            ? textEncoder.encode(data).byteLength
+            : data instanceof Blob
+              ? data.size
+              : data.byteLength;
+
+        return measure('validation', () => parseServerMessage(raw));
+      });
+
       if (!result.success) {
         console.warn('Invalid server message:', result.error);
         socket.close(4002, 'Invalid server message');
         return;
       }
+
       switch (result.data.type) {
         case 'joined':
           this.#events.emit('joined', result.data);
@@ -136,7 +147,10 @@ export class GameConnection {
         }
       }
     } catch (error: unknown) {
-      console.error('Failed to parse incoming WebSocket message:', error);
+      console.error(
+        'Failed to parse incoming WebSocket message:',
+        error
+      );
       socket.close(4002, 'Invalid server message');
     }
   }
@@ -158,10 +172,10 @@ export class GameConnection {
 
   #sendPayload(socket: WebSocket, data: ClientMessage): void {
     const useBinary = this.#codec === 'binary' && data.type === 'input';
-    const payload = getCodec(useBinary ? 'binary' : 'json').encode(data);
+    const payload = (useBinary ? binaryCodec : jsonCodec).encode(data);
     this.#bytesOut +=
       typeof payload === 'string'
-        ? new TextEncoder().encode(payload).byteLength
+        ? textEncoder.encode(payload).byteLength
         : payload.byteLength;
     socket.send(payload);
   }

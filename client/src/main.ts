@@ -4,6 +4,7 @@ import { Vector2 } from '../../shared/sim/vector.ts';
 import { integrateShip } from '../../shared/sim/integrate.ts';
 import { wrap } from '../../shared/sim/arena.ts';
 import { createInputMessage } from '../../shared/protocol/messages.ts';
+import { measure } from './performance.ts';
 import type {
   ClientInputMessage,
   EntitySnapshot,
@@ -316,6 +317,8 @@ function startGame(
   const interpolationDelayHud = document.querySelector<HTMLElement>(
     '#interpolation-delay'
   );
+  const interpolatedEntities: EntitySnapshot[] = [];
+  const renderEntities: (EntitySnapshot | PredictedRocket)[] = [];
 
   joinData.connection.on('snapshot', (snapshot) => {
     handleSnapshot(snapshot);
@@ -428,7 +431,7 @@ function startGame(
     };
   }
 
-  function simulate(): void {
+  function simulateWork(): void {
     if (input.isJustPressed('BracketLeft')) {
       interpolationDelayMs = Math.max(
         0,
@@ -499,7 +502,7 @@ function startGame(
     input.clearJustPressed();
   }
 
-  function render(_alpha: number, stats: LoopStats): void {
+  function renderWork(_alpha: number, stats: LoopStats): void {
     const ctx = canvasConfig.ctx;
     const now = performance.now();
     const correctionOffset = getCorrectionOffset(now);
@@ -511,27 +514,41 @@ function startGame(
       }
       rocket.x = rocket.startX + rocket.vel.x * elapsedSeconds;
       rocket.y = rocket.startY + rocket.vel.y * elapsedSeconds;
-      rocket.pos = { x: rocket.x, y: rocket.y };
+      rocket.pos.x = rocket.x;
+      rocket.pos.y = rocket.y;
     }
 
-    const renderEntities: (EntitySnapshot | PredictedRocket)[] =
-      getInterpolatedEntities(
-        snapshotBuffer,
-        now - interpolationDelayMs,
-        joinData.playerId
-      ).filter(
-        (entity) =>
-          entity.kind !== 'miniRocket' ||
-          entity.ownerPlayerId !== joinData.playerId
-      );
-    renderEntities.push(
-      ...entities.filter(
-        (entity) =>
-          entity.kind === 'miniRocket' &&
-          entity.ownerPlayerId === joinData.playerId
-      )
+    interpolatedEntities.length = 0;
+    getInterpolatedEntities(
+      snapshotBuffer,
+      now - interpolationDelayMs,
+      joinData.playerId,
+      interpolatedEntities
     );
-    renderEntities.push(...predictedRockets.values());
+
+    renderEntities.length = 0;
+
+    for (const entity of interpolatedEntities) {
+      if (
+        entity.kind !== 'miniRocket' ||
+        entity.ownerPlayerId !== joinData.playerId
+      ) {
+        renderEntities.push(entity);
+      }
+    }
+
+    for (const entity of entities) {
+      if (
+        entity.kind === 'miniRocket' &&
+        entity.ownerPlayerId === joinData.playerId
+      ) {
+        renderEntities.push(entity);
+      }
+    }
+
+    for (const rocket of predictedRockets.values()) {
+      renderEntities.push(rocket);
+    }
 
     const localShip = entities.find(
       (entity) =>
@@ -607,6 +624,14 @@ function startGame(
     if (interpolationDelayHud) {
       interpolationDelayHud.textContent = `Interpolation delay: ${interpolationDelayMs.toFixed(0)} ms ([ / ] to adjust)`;
     }
+  }
+
+  function simulate(): void {
+    measure('simulate', simulateWork);
+  }
+
+  function render(alpha: number, stats: LoopStats): void {
+    measure('render', () => renderWork(alpha, stats));
   }
 
   const loop = createLoop({ step, simulate, render });

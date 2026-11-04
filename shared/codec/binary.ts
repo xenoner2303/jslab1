@@ -339,7 +339,6 @@ function readEntity(reader: BinaryReader): EntitySnapshot {
   const angle = reader.readInt16() / 1000;
   const radius = reader.readFloat32();
   
-  // Створюємо справжні інстанси Vector2 замість звичайних об'єктів
   const pos = new Vector2(x, y);
   const vel = new Vector2(velX, velY);
   const alive = aliveValue === 1;
@@ -554,9 +553,5 @@ export function decodeBinaryMessage(data: ArrayBuffer | ArrayBufferView): Binary
   }
 
   reader.finish();
-  const validation = BinaryMessageSchema.safeParse(message);
-  if (!validation.success) {
-    throw new TypeError(`Invalid binary message: ${validation.error.message}`);
-  }
   return message;
 }
