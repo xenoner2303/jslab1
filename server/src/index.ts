@@ -12,6 +12,7 @@ import { RoomManager } from "./rooms.ts";
 import { WebSocket } from "ws";
 import { setupWebSocket } from "./ws.ts";
 import { metrics } from "./metrics.ts";
+import { logger } from "./logger.ts";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -391,7 +392,7 @@ async function handleRequest(
         return;
       }
 
-      console.error("Server error:", error);
+      logger.error({ err: error, event: "http.error" }, "Server error");
       if (!res.headersSent) {
         sendJson(res, 500, { error: "Internal Server Error" });
       } else {
@@ -406,22 +407,17 @@ roomManager.createRoom("room1");
 roomManager.createRoom("room2", 8);
 
 server.listen(config.port, config.host, () => {
-  console.log(`Server running at http://${config.host}:${config.port}`);
+  logger.info({ event: "server.started", host: config.host, port: config.port }, `Server running at http://${config.host}:${config.port}`);
 });
 
-const rssMetricsInterval = setInterval(() => {
-  const rssMemoryMB = process.memoryUsage().rss / 1024 / 1024;
-  console.log(`Server RSS Memory: ${rssMemoryMB.toFixed(2)} MB`);
-}, 1000);
 
 async function shutdown(signal: NodeJS.Signals): Promise<void> {
   if (isShuttingDown) return;
   isShuttingDown = true;
-  clearInterval(rssMetricsInterval);
-  console.log(`\nReceived ${signal}`);
+  logger.info({ event: "server.shutdown", signal }, `Received ${signal}`);
 
   const forceCloseTimer = setTimeout(() => {
-    console.error("Shutdown timed out; terminating remaining connections");
+    logger.error({ event: "server.shutdown_timeout" }, "Shutdown timed out; terminating remaining connections");
     for (const socket of webSocketServer.clients) {
       socket.terminate();
     }
@@ -453,7 +449,7 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
   try {
     await Promise.all([httpClosed, webSocketsClosed]);
     await roomManager.flushLogs();
-    console.log("HTTP and WebSocket servers closed.");
+    logger.info({ event: "server.closed" }, "HTTP and WebSocket servers closed.");
     await Promise.all([
       new Promise<void>((resolve) =>
         process.stdout.write("", "utf8", () => resolve()),
@@ -465,7 +461,7 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
     clearTimeout(forceCloseTimer);
     process.exit(0);
   } catch (error: unknown) {
-    console.error("Graceful shutdown failed:", error);
+    logger.error({ err: error, event: "server.shutdown_failed" }, "Graceful shutdown failed");
     clearTimeout(forceCloseTimer);
     process.exit(1);
   }
@@ -475,11 +471,11 @@ process.on("SIGINT", () => void shutdown("SIGINT"));
 process.on("SIGTERM", () => void shutdown("SIGTERM"));
 
 process.on("uncaughtException", (error) => {
-  console.error("Uncaught Exception:", error);
+  logger.fatal({ err: error, event: "process.uncaught_exception" }, "Uncaught Exception");
   process.exit(1);
 });
 
 process.on("unhandledRejection", (reason) => {
-  console.error("Unhandled Rejection:", reason);
+  logger.fatal({ err: reason, event: "process.unhandled_rejection" }, "Unhandled Rejection");
   process.exit(1);
 });

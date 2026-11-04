@@ -9,6 +9,7 @@ import {
 import { getCodec } from "../../shared/codec/index.ts";
 import { config } from "./config.ts";
 import { metrics } from "./metrics.ts";
+import { logger } from "./logger.ts";
 import { startHeartbeat } from "./heartbeat.ts";
 import {
   consumeMessageToken,
@@ -109,7 +110,7 @@ export function setupWebSocket(
       
       if (config.allowedOrigins && config.allowedOrigins.length > 0) {
         if (!origin || !config.allowedOrigins.includes(origin)) {
-          console.warn(`Blocked WebSocket connection from unauthorized origin: ${origin}`);
+          logger.warn({ event: "ws.rejected", reason: "unauthorized_origin", origin }, "Blocked WebSocket connection from unauthorized origin");
           metrics.recordRejection("unauthorized_origin");
           callback(false, 403, "Forbidden Origin");
           return;
@@ -121,7 +122,7 @@ export function setupWebSocket(
       const maxPerIp = config.limits.maxConnectionsPerIp ?? 10;
 
       if (currentCount >= maxPerIp) {
-        console.warn(`Blocked WebSocket connection: IP ${clientIp} exceeded limit (${maxPerIp})`);
+        logger.warn({ event: "ws.rejected", reason: "ip_limit_exceeded", ip: clientIp, maxPerIp }, "Blocked WebSocket connection: IP exceeded limit");
         metrics.recordRejection("ip_limit_exceeded");
         callback(false, 429, "Too Many Connections from this IP");
         return;
@@ -138,7 +139,7 @@ export function setupWebSocket(
     ipConnectionCounts.set(clientIp, (ipConnectionCounts.get(clientIp) ?? 0) + 1);
 
     socket.on("error", (error) => {
-      console.error("Socket error encountered:", error);
+      logger.error({ event: "ws.error", err: error }, "Socket error encountered");
     });
 
     const networkSimulation = createNetworkSimulation(req);
@@ -163,7 +164,7 @@ export function setupWebSocket(
 
     const joinTimeout = setTimeout(() => {
       if (!client.data.room) {
-        console.log("Connection closed: Join timeout exceeded (5s)");
+        logger.warn({ event: "ws.rejected", reason: "join_timeout" }, "Join timeout exceeded (5s)");
         metrics.recordRejection("join_timeout");
         client.close(4001, "Join timeout");
       }
@@ -188,9 +189,7 @@ export function setupWebSocket(
         )
       ) {
         if (!alreadyLimited) {
-          console.warn(
-            "Connection closed: WebSocket message rate limit exceeded",
-          );
+          logger.warn({ event: "ws.rejected", reason: "rate_limit_exceeded", roomId: client.data.room?.id, playerId: client.data.player?.id }, "WebSocket message rate limit exceeded");
           metrics.recordRejection("rate_limit_exceeded");
           client.close(4008, "Message rate limit exceeded");
         }
@@ -201,7 +200,7 @@ export function setupWebSocket(
       let rawMessage: unknown;
       if (isBinary) {
         if (codec !== "binary") {
-          console.warn("Validation failed: binary codec was not enabled");
+          logger.warn({ event: "ws.rejected", reason: "binary_not_enabled" }, "Binary codec not enabled");
           metrics.recordRejection("binary_not_enabled");
           client.close(4002, "Binary codec not enabled");
           return;
@@ -210,10 +209,7 @@ export function setupWebSocket(
         try {
           rawMessage = binaryCodec.decode(messageData);
         } catch (error: unknown) {
-          console.warn(
-            "Validation failed: invalid binary message:",
-            getErrorMessage(error),
-          );
+          logger.warn({ event: "ws.rejected", reason: "invalid_binary", err: getErrorMessage(error) }, "Invalid binary message");
           metrics.recordRejection("invalid_binary");
           client.close(4002, "Invalid binary message");
           return;
@@ -228,10 +224,7 @@ export function setupWebSocket(
                 : messageData.toString();
           rawMessage = jsonCodec.decode(text);
         } catch (error: unknown) {
-          console.warn(
-            "Validation failed: invalid JSON message:",
-            getErrorMessage(error),
-          );
+          logger.warn({ event: "ws.rejected", reason: "invalid_json", err: getErrorMessage(error) }, "Invalid JSON message");
           metrics.recordRejection("invalid_json");
           client.close(4002, "Invalid JSON message");
           return;
@@ -240,7 +233,7 @@ export function setupWebSocket(
 
       const validation = parseClientMessage(rawMessage);
       if (!validation.success) {
-        console.warn("Validation failed:", validation.error);
+        logger.warn({ event: "ws.rejected", reason: "invalid_message_schema", err: validation.error }, "Invalid message schema");
         metrics.recordRejection("invalid_message_schema");
         client.close(4002, "Invalid message schema");
         return;
@@ -248,9 +241,7 @@ export function setupWebSocket(
 
       const msg = validation.data;
       if (codec === "binary" && msg.type === MessageTypes.INPUT && !isBinary) {
-        console.warn(
-          "Validation failed: binary input required by selected codec",
-        );
+        logger.warn({ event: "ws.rejected", reason: "binary_input_required" }, "Binary input required");
         metrics.recordRejection("binary_input_required");
         client.close(4002, "Binary input required");
         return;
@@ -266,9 +257,7 @@ export function setupWebSocket(
             return;
           }
           if (client.data.room.id !== roomId) {
-            console.warn(
-              "Validation failed: socket attempted to join multiple rooms",
-            );
+            logger.warn({ event: "ws.rejected", reason: "already_joined", roomId: client.data.room.id }, "Socket attempted to join multiple rooms");
             metrics.recordRejection("already_joined");
             client.close(4002, "Already joined to a room");
             return;
@@ -286,14 +275,15 @@ export function setupWebSocket(
         clearTimeout(joinTimeout);
         const room = roomManager.getRoom(roomId);
         if (!room) {
-          console.warn(`Join rejected: room '${roomId}' does not exist`);
+          logger.warn({ event: "ws.rejected", reason: "room_not_found", roomId }, "Join rejected: room does not exist");
           metrics.recordRejection("room_not_found");
           client.close(4004, "Room not found");
           return;
         }
 
+        let player: Player;
         try {
-          const player = room.addPlayer(client, {
+          player = room.addPlayer(client, {
             id: Math.random().toString(36).substring(2, 9),
             name: playerName.trim(),
           });
@@ -307,22 +297,19 @@ export function setupWebSocket(
             }),
           );
         } catch (error: unknown) {
-          console.warn(
-            `Join rejected for room '${roomId}':`,
-            getErrorMessage(error),
-          );
+          logger.warn({ event: "ws.rejected", reason: "room_full", roomId, err: getErrorMessage(error) }, "Join rejected: room is full");
           metrics.recordRejection("room_full");
           client.close(4005, "Room is full");
           return;
         }
 
-        console.log(`Player '${playerName}' joined room ${room.id}`);
+        logger.info({ event: "player.joined", roomId: room.id, playerId: player.id, playerName }, "Player joined room");
         return;
       }
 
       const { player, room } = client.data;
       if (!room || !player) {
-        console.warn(`Message '${msg.type}' received before joining a room`);
+        logger.warn({ event: "ws.rejected", reason: "not_in_room", type: msg.type }, "Message received before joining a room");
         client.close(4003, "Not joined to any room");
         return;
       }
@@ -358,7 +345,7 @@ export function setupWebSocket(
       const { player, room } = client.data;
       if (room && player) {
         room.removePlayer(client);
-        console.log(`Player '${player.name}' left room ${room.id}`);
+        logger.info({ event: "player.left", roomId: room.id, playerId: player.id }, "Player left room");
         client.data = { player: null, room: null, networkSimulation, codec };
       }
       networkSimulation.clear();

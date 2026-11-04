@@ -4,6 +4,7 @@ import { MatchLog } from "./log/matchlog.ts";
 import { config } from "./config.ts";
 import { Match } from "./match.ts";
 import { metrics, calculatePercentile } from "./metrics.ts";
+import { logger } from "./logger.ts";
 import { getCodec } from "../../shared/codec/index.ts";
 import type { EntitySnapshot, ServerMessage } from "../../shared/protocol.ts";
 
@@ -71,6 +72,7 @@ export class Room extends EventEmitter<RoomEvents> {
     this.match = new Match(this);
     this.matchLog = new MatchLog(this, logDir);
     this.#recordEvent("created", { name, maxPlayers });
+    logger.info({ event: "room.created", roomId: this.id, name, maxPlayers }, "Room created");
     this.on("chat", ({ player, text, time }) => {
       this.#recordEvent("chat", {
         player: { id: player.id, name: player.name },
@@ -208,7 +210,7 @@ export class RoomManager {
 
     room.on("empty", (emptyRoom) => {
       this.rooms.delete(emptyRoom.id);
-      console.log(`Room ${emptyRoom.id} deleted because it became empty`);
+      logger.info({ event: "room.deleted", roomId: emptyRoom.id }, "Room deleted because it became empty");
       emptyRoom.close();
     });
 

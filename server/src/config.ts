@@ -10,6 +10,9 @@ const serverConfigSchema = z.object({
     .default(3000),
   HOST: z.string().min(1).default("localhost"),
   LOG_DIR: z.string().min(1).default("logs"),
+  LOG_LEVEL: z
+    .enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
+    .default("info"),
   ALLOWED_ORIGINS: z.string().default(""),
   MAX_CONNECTIONS_PER_IP: z
     .string()
@@ -35,6 +38,7 @@ export type ServerConfig = {
   readonly port: number;
   readonly host: string;
   readonly logDir: string;
+  readonly logLevel: string;
   readonly allowedOrigins: readonly string[];
   readonly limits: {
     readonly messagesPerSecond: number;
@@ -53,6 +57,7 @@ export const config: ServerConfig = {
   port: env.PORT,
   host: env.HOST,
   logDir: path.resolve(process.cwd(), env.LOG_DIR),
+  logLevel: env.LOG_LEVEL,
   allowedOrigins: env.ALLOWED_ORIGINS
     ? env.ALLOWED_ORIGINS.split(",")
         .map((origin) => origin.trim())
