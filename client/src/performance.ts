@@ -18,7 +18,6 @@ export function measure<T>(name: string, callback: () => T): T {
   }
 }
 
-
 export async function measureAsync<T>(
   name: string,
   callback: () => Promise<T>

@@ -317,6 +317,8 @@ function startGame(
   const interpolationDelayHud = document.querySelector<HTMLElement>(
     '#interpolation-delay'
   );
+  const interpolatedEntities: EntitySnapshot[] = [];
+  const renderEntities: (EntitySnapshot | PredictedRocket)[] = [];
 
   joinData.connection.on('snapshot', (snapshot) => {
     handleSnapshot(snapshot);
@@ -512,27 +514,41 @@ function startGame(
       }
       rocket.x = rocket.startX + rocket.vel.x * elapsedSeconds;
       rocket.y = rocket.startY + rocket.vel.y * elapsedSeconds;
-      rocket.pos = { x: rocket.x, y: rocket.y };
+      rocket.pos.x = rocket.x;
+      rocket.pos.y = rocket.y;
     }
 
-    const renderEntities: (EntitySnapshot | PredictedRocket)[] =
-      getInterpolatedEntities(
-        snapshotBuffer,
-        now - interpolationDelayMs,
-        joinData.playerId
-      ).filter(
-        (entity) =>
-          entity.kind !== 'miniRocket' ||
-          entity.ownerPlayerId !== joinData.playerId
-      );
-    renderEntities.push(
-      ...entities.filter(
-        (entity) =>
-          entity.kind === 'miniRocket' &&
-          entity.ownerPlayerId === joinData.playerId
-      )
+    interpolatedEntities.length = 0;
+    getInterpolatedEntities(
+      snapshotBuffer,
+      now - interpolationDelayMs,
+      joinData.playerId,
+      interpolatedEntities
     );
-    renderEntities.push(...predictedRockets.values());
+
+    renderEntities.length = 0;
+
+    for (const entity of interpolatedEntities) {
+      if (
+        entity.kind !== 'miniRocket' ||
+        entity.ownerPlayerId !== joinData.playerId
+      ) {
+        renderEntities.push(entity);
+      }
+    }
+
+    for (const entity of entities) {
+      if (
+        entity.kind === 'miniRocket' &&
+        entity.ownerPlayerId === joinData.playerId
+      ) {
+        renderEntities.push(entity);
+      }
+    }
+
+    for (const rocket of predictedRockets.values()) {
+      renderEntities.push(rocket);
+    }
 
     const localShip = entities.find(
       (entity) =>

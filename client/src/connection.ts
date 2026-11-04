@@ -1,5 +1,5 @@
 import { getCodec } from '../../shared/codec/index.ts';
-import { measureAsync } from './performance.ts';
+import { measure, measureAsync } from './performance.ts';
 import {
   parseServerMessage,
   type ClientMessage,
@@ -9,6 +9,10 @@ import {
   type SnapshotMessage,
 } from '../../shared/protocol.ts';
 import { Bus } from './bus.ts';
+
+const jsonCodec = getCodec('json');
+const binaryCodec = getCodec('binary');
+const textEncoder = new TextEncoder();
 
 export type GameEvents = {
   open: undefined;
@@ -98,21 +102,22 @@ export class GameConnection {
   ): Promise<void> {
     try {
       const result = await measureAsync('decode', async () => {
-        const raw =
-          data instanceof ArrayBuffer
-            ? getCodec('binary').decode(data)
+        const raw = await measureAsync('codecDecode', async () => {
+          return data instanceof ArrayBuffer
+            ? binaryCodec.decode(data)
             : data instanceof Blob
-              ? getCodec('binary').decode(await data.arrayBuffer())
-              : getCodec('json').decode(data);
+              ? binaryCodec.decode(await data.arrayBuffer())
+              : jsonCodec.decode(data);
+        });
 
         this.#bytesIn +=
           typeof data === 'string'
-            ? new TextEncoder().encode(data).byteLength
+            ? textEncoder.encode(data).byteLength
             : data instanceof Blob
               ? data.size
               : data.byteLength;
 
-        return parseServerMessage(raw);
+        return measure('validation', () => parseServerMessage(raw));
       });
 
       if (!result.success) {
@@ -167,10 +172,10 @@ export class GameConnection {
 
   #sendPayload(socket: WebSocket, data: ClientMessage): void {
     const useBinary = this.#codec === 'binary' && data.type === 'input';
-    const payload = getCodec(useBinary ? 'binary' : 'json').encode(data);
+    const payload = (useBinary ? binaryCodec : jsonCodec).encode(data);
     this.#bytesOut +=
       typeof payload === 'string'
-        ? new TextEncoder().encode(payload).byteLength
+        ? textEncoder.encode(payload).byteLength
         : payload.byteLength;
     socket.send(payload);
   }
