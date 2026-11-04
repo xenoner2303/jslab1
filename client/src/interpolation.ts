@@ -90,7 +90,7 @@ export function getInterpolatedEntities(
     const angle = interpolateAngle(entity.angle, next.angle, alpha);
     const position = { x, y };
 
-    output.push({ ...entity, x, y, angle, pos: position } as EntitySnapshot);
+    output.push({ ...entity, x, y, angle, pos: position });
   }
 
   return output;
