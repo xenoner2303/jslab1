@@ -90,52 +90,7 @@ export function getInterpolatedEntities(
     const angle = interpolateAngle(entity.angle, next.angle, alpha);
     const position = { x, y };
 
-    switch (entity.kind) {
-      case 'mainShip':
-        if (next.kind === 'mainShip') {
-          output.push({ ...entity, x, y, angle, pos: position });
-        } else {
-          output.push(entity);
-        }
-        break;
-
-      case 'miniRocket':
-        if (next.kind === 'miniRocket') {
-          output.push({ ...entity, x, y, angle, pos: position });
-        } else {
-          output.push(entity);
-        }
-        break;
-
-      case 'bliblie':
-        if (next.kind === 'bliblie') {
-          output.push({ ...entity, x, y, angle, pos: position });
-        } else {
-          output.push(entity);
-        }
-        break;
-
-      case 'pickup':
-        if (next.kind === 'pickup') {
-          output.push({ ...entity, x, y, angle, pos: position });
-        } else {
-          output.push(entity);
-        }
-        break;
-
-      case 'explosion':
-        if (next.kind === 'explosion') {
-          output.push({ ...entity, x, y, angle, pos: position });
-        } else {
-          output.push(entity);
-        }
-        break;
-
-      default: {
-        const exhaustiveCheck: never = entity;
-        throw new TypeError(`Unsupported entity: ${String(exhaustiveCheck)}`);
-      }
-    }
+    output.push({ ...entity, x, y, angle, pos: position } as EntitySnapshot);
   }
 
   return output;
