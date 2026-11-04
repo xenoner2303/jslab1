@@ -65,7 +65,7 @@ export function getCodec(type: "json" | "binary"): Codec {
       return new BinaryCodec();
     default: {
       const _exhaustive: never = type;
-      throw new TypeError(`Unsupported codec: ${_exhaustive}`);
+      throw new TypeError(`Unsupported codec: ${String(_exhaustive)}`);
     }
   }
 }

@@ -85,7 +85,7 @@ function getResponseMessage(payload: unknown): string | undefined {
   return undefined;
 }
 
-async function addBots(roomId: string, count: number): Promise<unknown[]> {
+async function addBots(roomId: string, count: number): Promise<number> {
   const response = await fetch(`/api/rooms/${roomId}/bots`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -108,7 +108,7 @@ async function addBots(roomId: string, count: number): Promise<unknown[]> {
   ) {
     throw new Error('Сервер повернув некоректну відповідь');
   }
-  return data.bots;
+  return data.bots.length;
 }
 
 function axisInput(value: number): -1 | 0 | 1 {
@@ -154,11 +154,16 @@ async function initGame(joinData: LobbyJoin): Promise<void> {
   if (!(botsSubmitButton instanceof HTMLButtonElement)) {
     throw new Error('Required bot form submit button was not found');
   }
+  const submitBotsButton = botsSubmitButton;
   const botsStatus = requireElement('bots-status', HTMLElement);
   const chatForm = requireElement('chat-form', HTMLFormElement);
   const chatInput = requireElement('chat-input', HTMLInputElement);
 
-  botsForm.addEventListener('submit', async (event) => {
+  botsForm.addEventListener('submit', (event) => {
+    void handleAddBots(event);
+  });
+
+  async function handleAddBots(event: SubmitEvent): Promise<void> {
     event.preventDefault();
     const count = Number(botsCountInput.value);
     if (!Number.isInteger(count) || count < 1 || count > 8) {
@@ -166,17 +171,17 @@ async function initGame(joinData: LobbyJoin): Promise<void> {
       return;
     }
 
-    botsSubmitButton.disabled = true;
+    submitBotsButton.disabled = true;
     botsStatus.textContent = 'Додаємо ботів…';
     try {
-      const bots = await addBots(joinData.room.id, count);
-      botsStatus.textContent = `Успішно додано ботів: ${bots.length}`;
+      const addedCount = await addBots(joinData.room.id, count);
+      botsStatus.textContent = `Успішно додано ботів: ${addedCount}`;
     } catch (error: unknown) {
       botsStatus.textContent = `Не вдалося додати ботів: ${getErrorMessage(error)}`;
     } finally {
-      botsSubmitButton.disabled = false;
+      submitBotsButton.disabled = false;
     }
-  });
+  }
 
   joinData.connection.on('chat', (chat) => {
     const message = document.createElement('p');
@@ -423,7 +428,7 @@ function startGame(
     };
   }
 
-  function simulate(_dt: number): void {
+  function simulate(): void {
     if (input.isJustPressed('BracketLeft')) {
       interpolationDelayMs = Math.max(
         0,
@@ -594,7 +599,7 @@ function startGame(
           break;
         default: {
           const exhaustiveCheck: never = entity;
-          throw new TypeError(`Unsupported entity: ${exhaustiveCheck}`);
+          throw new TypeError(`Unsupported entity: ${String(exhaustiveCheck)}`);
         }
       }
     }

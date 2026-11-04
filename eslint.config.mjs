@@ -25,6 +25,7 @@ export default tseslint.config(
       "vitest.config.mts",
       "e2e/**",
       "client/vite.config.js",
+      "eslint.config.mjs",
     ],
   },
 );

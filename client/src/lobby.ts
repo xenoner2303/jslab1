@@ -98,10 +98,10 @@ export class Lobby {
   startAutoRefresh(intervalMs: number = lobbyRefresh): void {
     this.stopAutoRefresh();
 
-    this.refresh();
+    void this.refresh();
 
     this.#refreshInterval = setInterval(() => {
-      this.refresh();
+      void this.refresh();
     }, intervalMs);
   }
 

@@ -71,9 +71,12 @@ export class GameConnection {
       }
     });
 
-    socket.addEventListener('message', (event: MessageEvent) => {
-      void this.#handleMessage(socket, event.data);
-    });
+    socket.addEventListener(
+      'message',
+      (event: MessageEvent<string | ArrayBuffer | Blob>) => {
+        void this.#handleMessage(socket, event.data);
+      }
+    );
 
     socket.addEventListener('close', (event) => {
       console.log(`WebSocket closed (code: ${event.code})`);
@@ -127,7 +130,9 @@ export class GameConnection {
           break;
         default: {
           const exhaustiveCheck: never = result.data;
-          throw new TypeError(`Unsupported server message: ${exhaustiveCheck}`);
+          throw new TypeError(
+            `Unsupported server message: ${String(exhaustiveCheck)}`
+          );
         }
       }
     } catch (error: unknown) {

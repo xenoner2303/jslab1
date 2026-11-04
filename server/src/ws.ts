@@ -294,7 +294,9 @@ export function setupWebSocket(
           return;
         default: {
           const exhaustiveCheck: never = msg;
-          throw new TypeError(`Unsupported client message: ${exhaustiveCheck}`);
+          throw new TypeError(
+            `Unsupported client message: ${String(exhaustiveCheck)}`,
+          );
         }
       }
     });

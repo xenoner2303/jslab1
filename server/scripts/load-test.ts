@@ -1,5 +1,5 @@
 import { performance } from "node:perf_hooks";
-import { WebSocket } from "ws";
+import { WebSocket, type RawData } from "ws";
 
 const baseUrl =
   process.env.LOAD_TEST_URL ?? `http://localhost:${process.env.PORT ?? 3000}`;
@@ -20,6 +20,19 @@ type ServerStats = {
   rssBytes: number;
   eventLoopUtilization: number;
 };
+
+function decodeWebSocketData(data: RawData): string {
+  if (Array.isArray(data)) return Buffer.concat(data).toString("utf8");
+  if (data instanceof ArrayBuffer) return Buffer.from(data).toString("utf8");
+  return data.toString("utf8");
+}
+
+function getWebSocketDataLength(data: RawData): number {
+  if (Array.isArray(data)) {
+    return data.reduce((length, part) => length + part.byteLength, 0);
+  }
+  return data.byteLength;
+}
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -50,8 +63,13 @@ async function connectClient(roomId: string, index: number): Promise<Client> {
     const timeout = setTimeout(() => reject(new Error("Join timeout")), 5000);
     socket.on("message", (data) => {
       try {
-        const message = JSON.parse(data.toString()) as { type?: string };
-        if (message.type === "joined") {
+        const message: unknown = JSON.parse(decodeWebSocketData(data));
+        if (
+          typeof message === "object" &&
+          message !== null &&
+          "type" in message &&
+          message.type === "joined"
+        ) {
           clearTimeout(timeout);
           resolve();
         }
@@ -107,7 +125,7 @@ async function runScenario(clientCount: number): Promise<void> {
       if (!roomId) continue;
       const client = await connectClient(roomId, index + 1);
       client.socket.on("message", (data) => {
-        receivedBytes += Buffer.byteLength(Buffer.from(data as any));
+        receivedBytes += getWebSocketDataLength(data);
       });
       clients.push(client);
       connected++;
@@ -117,7 +135,11 @@ async function runScenario(clientCount: number): Promise<void> {
     const samples: number[] = [];
     let previousReceivedBytes = receivedBytes;
     let bytesPerSecond = 0;
-    const sampleTimer = setInterval(async () => {
+    const sampleTimer = setInterval(() => {
+      void sampleStats();
+    }, 1000);
+
+    async function sampleStats(): Promise<void> {
       try {
         const stats = await readStats();
         for (const room of stats.rooms) {
@@ -130,7 +152,7 @@ async function runScenario(clientCount: number): Promise<void> {
       } catch (error) {
         console.error("Could not sample server stats:", error);
       }
-    }, 1000);
+    }
 
     await sleep(durationMs);
     clearInterval(sampleTimer);

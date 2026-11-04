@@ -5,7 +5,6 @@ import {
   TickSchema,
   type EntitySnapshot,
   type Seq,
-  type Tick,
 } from "../../shared/protocol.ts";
 import { createSnapshotMessage } from "../../shared/protocol/messages.ts";
 import {

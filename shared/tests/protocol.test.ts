@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { it, vi } from "vitest";
+import { it, vi, type MockInstance } from "vitest";
 import {
   EntitySnapshotSchema,
   parseClientMessage,
@@ -155,7 +155,7 @@ it("rejects malformed JSON", () => {
   assert.throws(() => codec.decode("{"), SyntaxError);
 });
 
-function expectErrorSpy(spy: ReturnType<typeof vi.spyOn>) {
+function expectErrorSpy(spy: MockInstance<typeof console.error>) {
   assert.equal(spy.mock.calls.length > 0, true);
   spy.mockRestore();
 }

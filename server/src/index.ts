@@ -93,7 +93,7 @@ async function parseJsonBody(
   req: IncomingMessage,
   limitBytes = 1024,
 ): Promise<unknown> {
-  const chunks: Buffer[] = [];
+  const chunks: Uint8Array[] = [];
   let receivedBytes = 0;
 
   for await (const chunk of req) {
@@ -107,7 +107,11 @@ async function parseJsonBody(
 
   if (chunks.length === 0) return {};
   try {
-    return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+    return JSON.parse(
+      Buffer.concat(chunks.map((chunk) => Uint8Array.from(chunk))).toString(
+        "utf8",
+      ),
+    );
   } catch (error: unknown) {
     throw new HttpError(`Invalid JSON body: ${getErrorMessage(error)}`, 400);
   }
@@ -119,10 +123,15 @@ function getRequestUrl(req: IncomingMessage): URL {
 }
 
 const server = http.createServer(
-  async (
-    req: IncomingMessage,
-    res: ServerResponse<IncomingMessage>,
-  ): Promise<void> => {
+  (req: IncomingMessage, res: ServerResponse<IncomingMessage>): void => {
+    void handleRequest(req, res);
+  },
+);
+
+async function handleRequest(
+  req: IncomingMessage,
+  res: ServerResponse<IncomingMessage>,
+): Promise<void> {
     try {
       const { pathname } = getRequestUrl(req);
 
@@ -349,8 +358,7 @@ const server = http.createServer(
         res.destroy(error instanceof Error ? error : new Error(String(error)));
       }
     }
-  },
-);
+}
 
 const webSocketServer = setupWebSocket(server, roomManager);
 
