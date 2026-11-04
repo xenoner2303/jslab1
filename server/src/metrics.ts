@@ -1,5 +1,3 @@
-import { performance } from "node:perf_hooks";
-
 export type RejectionReason =
   | "unauthorized_origin"
   | "ip_limit_exceeded"
