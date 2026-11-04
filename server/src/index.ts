@@ -9,7 +9,10 @@ import { z } from "zod";
 import { arenaHeight, arenaWidth } from "../../shared/config/settings.ts";
 import { config } from "./config.ts";
 import { RoomManager } from "./rooms.ts";
+import { WebSocket } from "ws";
 import { setupWebSocket } from "./ws.ts";
+import { metrics } from "./metrics.ts";
+import { logger } from "./logger.ts";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -122,6 +125,8 @@ function getRequestUrl(req: IncomingMessage): URL {
   return new URL(req.url ?? "/", `http://${host}`);
 }
 
+let isShuttingDown = false;
+
 const server = http.createServer(
   (req: IncomingMessage, res: ServerResponse<IncomingMessage>): void => {
     void handleRequest(req, res);
@@ -136,20 +141,56 @@ async function handleRequest(
       const { pathname } = getRequestUrl(req);
 
       if (req.method === "GET" && pathname === "/health") {
-        sendJson(res, 200, { status: "ok", uptime: process.uptime() });
-        return;
-      }
-
-      if (req.method === "GET" && pathname === "/api/stats") {
-        sendJson(res, 200, {
-          ...roomManager.getStats(),
-          rssBytes: process.memoryUsage().rss,
-          eventLoopUtilization:
-            performance.eventLoopUtilization(eventLoopBaseline).utilization,
+        sendJson(res, 200, { 
+          status: "ok", 
+          uptime: process.uptime(),
+          version: process.env.GIT_SHA ?? "1.0.0"
         });
         return;
       }
 
+      if (req.method === "GET" && pathname === "/ready") {
+        if (isShuttingDown) {
+          sendJson(res, 503, { status: "shutting_down" });
+          return;
+        }
+        sendJson(res, 200, { status: "ready" });
+        return;
+      }
+
+      if (req.method === "GET" && pathname === "/metrics") {
+        const stats = roomManager.getStats();
+        const rss = process.memoryUsage().rss;
+        const elu = performance.eventLoopUtilization(eventLoopBaseline).utilization;
+
+        const prometheusOutput = metrics.renderPrometheus({
+          totalRooms: stats.totalRooms,
+          totalPlayers: stats.totalPlayers,
+          tickTimeP99Ms: stats.tickTimeP99Ms,
+          rssBytes: rss,
+          eventLoopUtilization: elu,
+        });
+
+        res.writeHead(200, { "Content-Type": "text/plain; version=0.0.4; charset=UTF-8" });
+        res.end(prometheusOutput);
+        return;
+      }
+
+      if (req.method === "GET" && pathname === "/api/stats") {
+        const stats = roomManager.getStats();
+        const rss = process.memoryUsage().rss;
+        const elu = performance.eventLoopUtilization(eventLoopBaseline).utilization;
+        const metricsSnapshot = metrics.getSnapshot();
+
+        sendJson(res, 200, {
+          ...stats,
+          ...metricsSnapshot,
+          rssBytes: rss,
+          eventLoopUtilization: elu,
+        });
+        return;
+      }
+      
       if (req.method === "GET" && pathname === "/api/slow") {
         const start = process.hrtime.bigint();
         const delayNanoseconds = 3_000_000_000n;
@@ -351,7 +392,7 @@ async function handleRequest(
         return;
       }
 
-      console.error("Server error:", error);
+      logger.error({ err: error, event: "http.error" }, "Server error");
       if (!res.headersSent) {
         sendJson(res, 500, { error: "Internal Server Error" });
       } else {
@@ -366,24 +407,17 @@ roomManager.createRoom("room1");
 roomManager.createRoom("room2", 8);
 
 server.listen(config.port, config.host, () => {
-  console.log(`Server running at http://${config.host}:${config.port}`);
+  logger.info({ event: "server.started", host: config.host, port: config.port }, `Server running at http://${config.host}:${config.port}`);
 });
 
-const rssMetricsInterval = setInterval(() => {
-  const rssMemoryMB = process.memoryUsage().rss / 1024 / 1024;
-  console.log(`Server RSS Memory: ${rssMemoryMB.toFixed(2)} MB`);
-}, 1000);
-
-let isShuttingDown = false;
 
 async function shutdown(signal: NodeJS.Signals): Promise<void> {
   if (isShuttingDown) return;
   isShuttingDown = true;
-  clearInterval(rssMetricsInterval);
-  console.log(`\nReceived ${signal}`);
+  logger.info({ event: "server.shutdown", signal }, `Received ${signal}`);
 
   const forceCloseTimer = setTimeout(() => {
-    console.error("Shutdown timed out; terminating remaining connections");
+    logger.error({ event: "server.shutdown_timeout" }, "Shutdown timed out; terminating remaining connections");
     for (const socket of webSocketServer.clients) {
       socket.terminate();
     }
@@ -394,9 +428,20 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
   const httpClosed = new Promise<void>((resolve, reject) => {
     server.close((error) => (error ? reject(error) : resolve()));
   });
+  
   const webSocketsClosed = new Promise<void>((resolve) => {
     webSocketServer.close(() => resolve());
     for (const socket of webSocketServer.clients) {
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.send(
+          JSON.stringify({
+            type: "chat",
+            sender: "System",
+            text: "не пограєш ти, все. Сервер вимикається",
+            time: Date.now(),
+          })
+        );
+      }
       socket.close(1001, "Server shutting down");
     }
   });
@@ -404,7 +449,7 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
   try {
     await Promise.all([httpClosed, webSocketsClosed]);
     await roomManager.flushLogs();
-    console.log("HTTP and WebSocket servers closed.");
+    logger.info({ event: "server.closed" }, "HTTP and WebSocket servers closed.");
     await Promise.all([
       new Promise<void>((resolve) =>
         process.stdout.write("", "utf8", () => resolve()),
@@ -416,7 +461,7 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
     clearTimeout(forceCloseTimer);
     process.exit(0);
   } catch (error: unknown) {
-    console.error("Graceful shutdown failed:", error);
+    logger.error({ err: error, event: "server.shutdown_failed" }, "Graceful shutdown failed");
     clearTimeout(forceCloseTimer);
     process.exit(1);
   }
@@ -424,3 +469,13 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
 
 process.on("SIGINT", () => void shutdown("SIGINT"));
 process.on("SIGTERM", () => void shutdown("SIGTERM"));
+
+process.on("uncaughtException", (error) => {
+  logger.fatal({ err: error, event: "process.uncaught_exception" }, "Uncaught Exception");
+  process.exit(1);
+});
+
+process.on("unhandledRejection", (reason) => {
+  logger.fatal({ err: reason, event: "process.unhandled_rejection" }, "Unhandled Rejection");
+  process.exit(1);
+});

@@ -3,6 +3,8 @@ import type { WebSocket } from "ws";
 import { MatchLog } from "./log/matchlog.ts";
 import { config } from "./config.ts";
 import { Match } from "./match.ts";
+import { metrics, calculatePercentile } from "./metrics.ts";
+import { logger } from "./logger.ts";
 import { getCodec } from "../../shared/codec/index.ts";
 import type { EntitySnapshot, ServerMessage } from "../../shared/protocol.ts";
 
@@ -70,6 +72,7 @@ export class Room extends EventEmitter<RoomEvents> {
     this.match = new Match(this);
     this.matchLog = new MatchLog(this, logDir);
     this.#recordEvent("created", { name, maxPlayers });
+    logger.info({ event: "room.created", roomId: this.id, name, maxPlayers }, "Room created");
     this.on("chat", ({ player, text, time }) => {
       this.#recordEvent("chat", {
         player: { id: player.id, name: player.name },
@@ -156,7 +159,10 @@ export class Room extends EventEmitter<RoomEvents> {
           ? getCodec("binary").encode(data)
           : getCodec("json").encode(data);
       const send = () => {
-        if (socket.readyState === 1) socket.send(payload);
+        if (socket.readyState === 1) {
+          socket.send(payload);
+          metrics.recordMessageOut(typeof payload === "string" ? Buffer.byteLength(payload) : payload.byteLength);
+        }
       };
       if (socket.data?.networkSimulation) {
         socket.data.networkSimulation.schedule("outgoing", send);
@@ -204,7 +210,7 @@ export class RoomManager {
 
     room.on("empty", (emptyRoom) => {
       this.rooms.delete(emptyRoom.id);
-      console.log(`Room ${emptyRoom.id} deleted because it became empty`);
+      logger.info({ event: "room.deleted", roomId: emptyRoom.id }, "Room deleted because it became empty");
       emptyRoom.close();
     });
 
@@ -229,10 +235,25 @@ export class RoomManager {
   }
 
   getStats(): {
+    totalRooms: number;
+    totalPlayers: number;
+    tickTimeP99Ms: number;
     rooms: ({ roomId: string } & ReturnType<Match["getStats"]>)[];
   } {
+    const rooms = [...this.rooms.values()];
+    const totalPlayers = rooms.reduce(
+      (acc, room) => acc + room.match.players.size,
+      0,
+    );
+
+    const allSamples = rooms.flatMap((room) => room.match.recentTickDurations);
+    const tickTimeP99Ms = Number(calculatePercentile(allSamples, 0.99).toFixed(3));
+
     return {
-      rooms: [...this.rooms.values()].map((room) => ({
+      totalRooms: rooms.length,
+      totalPlayers,
+      tickTimeP99Ms,
+      rooms: rooms.map((room) => ({
         roomId: room.id,
         ...room.match.getStats(),
       })),
