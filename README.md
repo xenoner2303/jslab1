@@ -3,15 +3,7 @@
 ## Lab 4 — Bots, Web Worker and load test
 
 ### Add server-side bots
-Start the server, create or choose a room with free slots (the room must have `maxPlayers` up to 8), then send:
-
-```bash
-curl -X POST http://localhost:3000/api/rooms/ROOM_ID/bots \
-  -H "Content-Type: application/json" \
-  -d '{"count":3}'
-```
-
-The endpoint adds 1–8 bots, limited by the room's remaining capacity. Bots use the same `ShipInputHandler` path as human players, pursue the nearest living ship, keep some distance, and fire when aimed at a target. They appear in snapshots and the room roster.
+Added button on main page
 
 ### Particle preparation Web Worker
 
