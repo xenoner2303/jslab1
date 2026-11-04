@@ -1,4 +1,4 @@
-import http, { type IncomingMessage, type ServerResponse } from "node:http";
+﻿import http, { type IncomingMessage, type ServerResponse } from "node:http";
 import { performance } from "node:perf_hooks";
 import { createReadStream } from "node:fs";
 import fs from "node:fs/promises";
@@ -430,7 +430,6 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
   });
   
   const webSocketsClosed = new Promise<void>((resolve) => {
-    webSocketServer.close(() => resolve());
     for (const socket of webSocketServer.clients) {
       if (socket.readyState === WebSocket.OPEN) {
         socket.send(
@@ -442,8 +441,14 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
           })
         );
       }
-      socket.close(1001, "Server shutting down");
     }
+
+    setTimeout(() => {
+      for (const socket of webSocketServer.clients) {
+        socket.close(1001, "Server shutting down");
+      }
+      webSocketServer.close(() => resolve());
+    }, 150);
   });
 
   try {

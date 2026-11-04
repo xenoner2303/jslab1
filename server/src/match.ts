@@ -108,6 +108,8 @@ export class Match {
     this.room = room;
     this.seed = randomInt(0, 0x100000000);
     this.world = new World(arenaWidth, arenaHeight, this.seed);
+
+    this.#bindWorldAudioEvents();
   }
 
   addPlayer(player: MatchPlayer): EntitySnapshot {
@@ -312,6 +314,61 @@ export class Match {
       state.input.firePending = true;
       state.fireCooldown = 0.8;
     }
+  }
+
+  #bindWorldAudioEvents(): void {
+    this.world.addEventListener("shoot", () => {
+      this.room.broadcast({
+        type: "audioEvent",
+        payload: { event: "shoot" },
+      });
+    });
+
+    this.world.addEventListener("hit", (event) => {
+      const { type } = (event as CustomEvent<{ type: "bliblie" }>).detail;
+
+      this.room.broadcast({
+        type: "audioEvent",
+        payload: {
+          event: "hit",
+          targetType: type,
+        },
+      });
+    });
+
+    this.world.addEventListener("kill", (event) => {
+      const { count, type } = (
+        event as CustomEvent<{ count: number; type: "bliblie" }>
+      ).detail;
+
+      this.room.broadcast({
+        type: "audioEvent",
+        payload: {
+          event: "kill",
+          count,
+          targetType: type,
+        },
+      });
+    });
+
+    this.world.addEventListener("environment", (event) => {
+      const { type } = (event as CustomEvent<{ type: "bliblie" }>).detail;
+
+      this.room.broadcast({
+        type: "audioEvent",
+        payload: {
+          event: "environment",
+          soundType: type,
+        },
+      });
+    });
+
+    this.world.addEventListener("exploded", () => {
+      this.room.broadcast({
+        type: "audioEvent",
+        payload: { event: "exploded" },
+      });
+    });
   }
 
   #serializeEntity(entity: Entity, playerId: string | null): EntitySnapshot {
