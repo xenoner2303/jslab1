@@ -46,8 +46,8 @@ As far as we can see, binary sends less data, but its format is harder to read a
 **Security:** runs under a non-root `node` user with explicit health checks
 
 | Image Tag | Disk Usage | Content Size |
-| :--- | :---: | :---: | :---: |
-| `ghcr.io/xenoner2303/jslab1:v1.0.1` | 286 MB | **71.9 MB** |
+| :--- | :---: | :---: |
+| `ghcr.io/xenoner2303/jslab1:v1.0.1` | 286 MB | 71.9 MB |
 
 ### Network Profile
 Sample captured during an active multi-client session via `/metrics`:
@@ -67,7 +67,7 @@ Measured between independent peers across different ISP networks:
 2) Rate Limiting & Abuse Protection:
   * Per-IP connection caps
   * Strict payload size restrictions and 5-second join timeouts
-  * Flooding the socket with invalid frames (e.g., 1,000 bad frames/sec) triggers immediate connection termination, updates Prometheus counters (`game_rejections_total`), and has **zero impact** on other active rooms' tick performance
+  * Flooding the socket with invalid frames (e.g., 1,000 bad frames/sec) triggers immediate connection termination, updates Prometheus counters (`game_rejections_total`), and has zero impact on other active rooms' tick performance
 3) Realised graceful shutdown: intercepts `SIGTERM` / `SIGINT`, broadcasts code `1001` with a farewell message to active sockets, drains connections, and exits cleanly with code `0` within 5 seconds
 
 ## Known Limitations
