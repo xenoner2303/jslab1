@@ -26,7 +26,7 @@ Real-world match recording featuring independent players across distinct network
 
 **Protocol** - all incoming and outgoing messages are validated at runtime using `Zod` discriminated unions (`MessageSchema`, `ServerMessageSchema`).
 
-**JSON + Binary measurements**
+**JSON + binary measurements**
 
 High-frequency game states (snapshots and player inputs) are optimized to reduce serialization overhead.
 Test at 30 Hz with 4 players. Measure each codec under the same game conditions.
