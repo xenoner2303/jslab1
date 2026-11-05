@@ -73,9 +73,9 @@ Measured between independent peers across different ISP networks:
 
 ## Known Limitations
 1) Game state is currently held entirely in memory and, as it scales in the future, it may require significant resources
-2. On the free Render tier, instances spin down after inactivity, leading to a ~30-second initial connection delay
-3. Client-side interpolation relies on basic dead reckoning without advanced lag compensation
-4. Homing is a single constant modifier of all MiniRockets at this version (1.0.1)
+2) On the free Render tier, instances spin down after inactivity, leading to a ~30-second initial connection delay
+3) Client-side interpolation relies on basic dead reckoning without advanced lag compensation
+4) Homing is a single constant modifier of all MiniRockets at this version (1.0.1)
 
 ---
 
@@ -88,4 +88,5 @@ Measured between independent peers across different ISP networks:
 
 ## Release History & Tags
 **`v1.0.1`** – added audio events, fixed Zod discriminated unions, optimized multi-stage Docker build pipeline, and verified GitHub Actions CI/CD deployment to GHCR & Render.
+
 **`v1.0.0`** – initial stable release with core WebSocket game loop, hardening, and metrics.
