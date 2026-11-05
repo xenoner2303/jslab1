@@ -23,6 +23,7 @@ import { Pickup } from "../../shared/sim/pickup.ts";
 import { Ship } from "../../shared/sim/ship.ts";
 import { Vector2 } from "../../shared/sim/vector.ts";
 import { World } from "../../shared/sim/world.ts";
+import { calculatePercentile } from "./metrics.ts";
 import type { Room } from "./rooms.ts";
 
 const TICK_INTERVAL_MS = 1000 / simulationTickRate;
@@ -98,6 +99,7 @@ export class Match {
   lastTickDurationMs = 0;
   lastTickJitterMs = 0;
   totalTicks = 0;
+  readonly recentTickDurations: number[] = [];
   #timer: ReturnType<typeof setTimeout> | null = null;
   #nextTickAt = 0;
   #nextBotId = 1;
@@ -106,6 +108,8 @@ export class Match {
     this.room = room;
     this.seed = randomInt(0, 0x100000000);
     this.world = new World(arenaWidth, arenaHeight, this.seed);
+
+    this.#bindWorldAudioEvents();
   }
 
   addPlayer(player: MatchPlayer): EntitySnapshot {
@@ -188,6 +192,7 @@ export class Match {
     lastTickDurationMs: number;
     lastTickJitterMs: number;
     totalTicks: number;
+    tickTimeP99Ms: number;
   } {
     return {
       tick: this.tick,
@@ -196,6 +201,7 @@ export class Match {
       lastTickDurationMs: this.lastTickDurationMs,
       lastTickJitterMs: this.lastTickJitterMs,
       totalTicks: this.totalTicks,
+      tickTimeP99Ms: Number(calculatePercentile(this.recentTickDurations, 0.99).toFixed(3)),
     };
   }
 
@@ -231,6 +237,10 @@ export class Match {
     this.tick += 1;
     this.totalTicks += 1;
     this.lastTickDurationMs = performance.now() - tickStartedAt;
+    this.recentTickDurations.push(this.lastTickDurationMs);
+    if (this.recentTickDurations.length > 300) {
+      this.recentTickDurations.shift();
+    }
 
     const playerIdByShip = new Map(
       [...this.players].map(([playerId, state]) => [state.ship, playerId]),
@@ -304,6 +314,61 @@ export class Match {
       state.input.firePending = true;
       state.fireCooldown = 0.8;
     }
+  }
+
+  #bindWorldAudioEvents(): void {
+    this.world.addEventListener("shoot", () => {
+      this.room.broadcast({
+        type: "audioEvent",
+        payload: { event: "shoot" },
+      });
+    });
+
+    this.world.addEventListener("hit", (event) => {
+      const { type } = (event as CustomEvent<{ type: "bliblie" }>).detail;
+
+      this.room.broadcast({
+        type: "audioEvent",
+        payload: {
+          event: "hit",
+          targetType: type,
+        },
+      });
+    });
+
+    this.world.addEventListener("kill", (event) => {
+      const { count, type } = (
+        event as CustomEvent<{ count: number; type: "bliblie" }>
+      ).detail;
+
+      this.room.broadcast({
+        type: "audioEvent",
+        payload: {
+          event: "kill",
+          count,
+          targetType: type,
+        },
+      });
+    });
+
+    this.world.addEventListener("environment", (event) => {
+      const { type } = (event as CustomEvent<{ type: "bliblie" }>).detail;
+
+      this.room.broadcast({
+        type: "audioEvent",
+        payload: {
+          event: "environment",
+          soundType: type,
+        },
+      });
+    });
+
+    this.world.addEventListener("exploded", () => {
+      this.room.broadcast({
+        type: "audioEvent",
+        payload: { event: "exploded" },
+      });
+    });
   }
 
   #serializeEntity(entity: Entity, playerId: string | null): EntitySnapshot {

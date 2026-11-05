@@ -1,0 +1,10 @@
+services:
+  game:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - HOST=0.0.0.0
+      - LOG_LEVEL=info
+    restart: unless-stopped

@@ -1,3 +1,4 @@
+declare const __GIT_SHA__: string | undefined;
 import type { LoopStats } from './loop.ts';
 
 type Hud = {
@@ -17,7 +18,23 @@ export function initHud(): Hud {
   const frameTimeElement = getElement('frameTime');
   const correctionElement = getElement('reconciliation-correction');
   const messageElement = getElement('kill-msg');
+  const versionElement = getElement('version');
   let hideTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  if (versionElement) {
+    const buildSha = typeof __GIT_SHA__ !== 'undefined' ? __GIT_SHA__ : 'dev';
+    versionElement.textContent = `Version: ${buildSha}`;
+    void fetch('/health')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { version?: string } | null) => {
+        if (data?.version) {
+          versionElement.textContent = `Version: ${data.version}`;
+        }
+      })
+      .catch(() => {
+        // Keep buildSha
+      });
+  }
 
   return {
     update(stats, score, correctionMagnitude) {

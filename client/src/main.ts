@@ -4,7 +4,6 @@ import { Vector2 } from '../../shared/sim/vector.ts';
 import { integrateShip } from '../../shared/sim/integrate.ts';
 import { wrap } from '../../shared/sim/arena.ts';
 import { createInputMessage } from '../../shared/protocol/messages.ts';
-import { measure } from './performance.ts';
 import type {
   ClientInputMessage,
   EntitySnapshot,
@@ -209,15 +208,14 @@ async function initGame(joinData: LobbyJoin): Promise<void> {
     chatInput.value = '';
   });
 
-  let audioContext: AudioContext | null = null;
-  await new Promise<void>((resolve) => {
+  const audioContext = await new Promise<AudioContext>((resolve) => {
     startButton.addEventListener(
       'click',
       () => {
-        audioContext = new window.AudioContext();
+        const context = new window.AudioContext();
         startButton.style.display = 'none';
         loadingText.textContent = '0%';
-        resolve();
+        resolve(context);
       },
       { once: true }
     );
@@ -250,10 +248,9 @@ async function initGame(joinData: LobbyJoin): Promise<void> {
 
       cancelButton.style.display = 'none';
       cancelButton.onclick = null;
-      initAudio(audioContext, assets.sounds);
       chatPanel.style.display = 'flex';
       loadingScreen.style.display = 'none';
-      startGame(assets, canvasConfig, joinData);
+      startGame(assets, canvasConfig, joinData, audioContext);
     } catch (error: unknown) {
       cancelButton.style.display = 'none';
       cancelButton.onclick = null;
@@ -279,7 +276,8 @@ async function initGame(joinData: LobbyJoin): Promise<void> {
 function startGame(
   assets: LoadedAssets,
   canvasConfig: CanvasConfig,
-  joinData: LobbyJoin
+  joinData: LobbyJoin,
+  audioContext: AudioContext
 ): void {
   const input = createInput(window);
   const pendingInputs = new Map<number, ClientInputMessage>();
@@ -304,6 +302,40 @@ function startGame(
       );
     }
   };
+
+  const audio = initAudio(audioContext, assets.sounds);
+
+  joinData.connection.on('audioEvent', ({ payload }) => {
+    switch (payload.event) {
+      case 'shoot':
+        audio.playShoot();
+        break;
+
+      case 'hit':
+        audio.playHit(payload.targetType);
+        break;
+
+      case 'kill':
+        audio.playKillJoke(payload.count, payload.targetType);
+        break;
+
+      case 'environment':
+        audio.playEnvironmentSound(payload.soundType);
+        break;
+
+      case 'exploded':
+        audio.playExplosion();
+        break;
+
+      default: {
+        const exhaustiveCheck: never = payload;
+        throw new TypeError(
+          `Unsupported audio event: ${String(exhaustiveCheck)}`
+        );
+      }
+    }
+  });
+
   const maxInterpolationDelayMs = 500;
   let interpolationDelayMs = interpolationDelayStepMs * 2;
   let entities: readonly EntitySnapshot[] = [];
@@ -317,8 +349,6 @@ function startGame(
   const interpolationDelayHud = document.querySelector<HTMLElement>(
     '#interpolation-delay'
   );
-  const interpolatedEntities: EntitySnapshot[] = [];
-  const renderEntities: (EntitySnapshot | PredictedRocket)[] = [];
 
   joinData.connection.on('snapshot', (snapshot) => {
     handleSnapshot(snapshot);
@@ -431,7 +461,7 @@ function startGame(
     };
   }
 
-  function simulateWork(): void {
+  function simulate(): void {
     if (input.isJustPressed('BracketLeft')) {
       interpolationDelayMs = Math.max(
         0,
@@ -502,7 +532,7 @@ function startGame(
     input.clearJustPressed();
   }
 
-  function renderWork(_alpha: number, stats: LoopStats): void {
+  function render(_alpha: number, stats: LoopStats): void {
     const ctx = canvasConfig.ctx;
     const now = performance.now();
     const correctionOffset = getCorrectionOffset(now);
@@ -514,41 +544,27 @@ function startGame(
       }
       rocket.x = rocket.startX + rocket.vel.x * elapsedSeconds;
       rocket.y = rocket.startY + rocket.vel.y * elapsedSeconds;
-      rocket.pos.x = rocket.x;
-      rocket.pos.y = rocket.y;
+      rocket.pos = { x: rocket.x, y: rocket.y };
     }
 
-    interpolatedEntities.length = 0;
-    getInterpolatedEntities(
-      snapshotBuffer,
-      now - interpolationDelayMs,
-      joinData.playerId,
-      interpolatedEntities
+    const renderEntities: (EntitySnapshot | PredictedRocket)[] =
+      getInterpolatedEntities(
+        snapshotBuffer,
+        now - interpolationDelayMs,
+        joinData.playerId
+      ).filter(
+        (entity) =>
+          entity.kind !== 'miniRocket' ||
+          entity.ownerPlayerId !== joinData.playerId
+      );
+    renderEntities.push(
+      ...entities.filter(
+        (entity) =>
+          entity.kind === 'miniRocket' &&
+          entity.ownerPlayerId === joinData.playerId
+      )
     );
-
-    renderEntities.length = 0;
-
-    for (const entity of interpolatedEntities) {
-      if (
-        entity.kind !== 'miniRocket' ||
-        entity.ownerPlayerId !== joinData.playerId
-      ) {
-        renderEntities.push(entity);
-      }
-    }
-
-    for (const entity of entities) {
-      if (
-        entity.kind === 'miniRocket' &&
-        entity.ownerPlayerId === joinData.playerId
-      ) {
-        renderEntities.push(entity);
-      }
-    }
-
-    for (const rocket of predictedRockets.values()) {
-      renderEntities.push(rocket);
-    }
+    renderEntities.push(...predictedRockets.values());
 
     const localShip = entities.find(
       (entity) =>
@@ -624,14 +640,6 @@ function startGame(
     if (interpolationDelayHud) {
       interpolationDelayHud.textContent = `Interpolation delay: ${interpolationDelayMs.toFixed(0)} ms ([ / ] to adjust)`;
     }
-  }
-
-  function simulate(): void {
-    measure('simulate', simulateWork);
-  }
-
-  function render(alpha: number, stats: LoopStats): void {
-    measure('render', () => renderWork(alpha, stats));
   }
 
   const loop = createLoop({ step, simulate, render });

@@ -2,6 +2,7 @@ import { getCodec } from '../../shared/codec/index.ts';
 import { measure, measureAsync } from './performance.ts';
 import {
   parseServerMessage,
+  type AudioEventMessage,
   type ClientMessage,
   type JoinedMessage,
   type RosterMessage,
@@ -23,6 +24,7 @@ export type GameEvents = {
   roster: RosterMessage;
   chat: ServerChatMessage;
   snapshot: SnapshotMessage;
+  audioEvent: AudioEventMessage;
 };
 
 export class GameConnection {
@@ -138,6 +140,9 @@ export class GameConnection {
           break;
         case 'roster':
           this.#events.emit('roster', result.data);
+          break;
+        case "audioEvent":
+          this.#events.emit("audioEvent", result.data);
           break;
         default: {
           const exhaustiveCheck: never = result.data;

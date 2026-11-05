@@ -21,15 +21,15 @@ const tick = TickSchema;
 const seq = SeqSchema;
 const nonEmptyString = (max: number) =>
   z.string().max(max).refine((value) => value.trim().length > 0);
-const vector = z.object({ x: z.number().finite(), y: z.number().finite() }).strict();
+const vector = z.object({ x: z.number(), y: z.number() }).strict();
 const entityFields = {
   id: entityId,
   pos: vector,
   vel: vector,
-  x: z.number().finite(),
-  y: z.number().finite(),
-  angle: z.number().finite(),
-  radius: z.number().finite().nonnegative(),
+  x: z.number(),
+  y: z.number(),
+  angle: z.number(),
+  radius: z.number().nonnegative(),
   alive: z.boolean(),
   playerId: z.string().min(1).nullable(),
 };
@@ -49,11 +49,13 @@ export const ServerMessageTypes: {
   readonly SNAPSHOT: "snapshot";
   readonly CHAT: "chat";
   readonly ROSTER: "roster";
+  readonly AUDIO_EVENT: "audioEvent";
 } = {
   JOINED: "joined",
   SNAPSHOT: "snapshot",
   CHAT: "chat",
   ROSTER: "roster",
+  AUDIO_EVENT: "audioEvent",
 };
 
 export const JoinMessageSchema = z
@@ -185,6 +187,41 @@ export const RosterMessageSchema = z
   })
   .strict();
 
+const AudioEventPayloadSchema = z.discriminatedUnion("event", [
+  z.object({
+    event: z.literal("shoot"),
+  }).strict(),
+
+  z.object({
+    event: z.literal("hit"),
+    targetType: z.literal("bliblie"),
+  }).strict(),
+
+  z.object({
+    event: z.literal("kill"),
+    count: uint32,
+    targetType: z.literal("bliblie"),
+  }).strict(),
+
+  z.object({
+    event: z.literal("environment"),
+    soundType: z.literal("bliblie"),
+  }).strict(),
+
+  z.object({
+    event: z.literal("exploded"),
+  }).strict(),
+]);
+
+export const AudioEventMessageSchema = z
+  .object({
+    type: z.literal(ServerMessageTypes.AUDIO_EVENT),
+    payload: AudioEventPayloadSchema,
+  })
+  .strict();
+
+export type AudioEventMessage = DeepReadonly<z.infer<typeof AudioEventMessageSchema>>;
+
 export const ClientMessageSchema = z.discriminatedUnion("type", [
   JoinMessageSchema,
   InputMessageSchema,
@@ -196,6 +233,7 @@ export const ServerMessageSchema = z.discriminatedUnion("type", [
   SnapshotMessageSchema,
   ServerChatMessageSchema,
   RosterMessageSchema,
+  AudioEventMessageSchema,
 ]);
 
 export const ProtocolMessageSchema = z.union([
